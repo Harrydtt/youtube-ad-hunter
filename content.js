@@ -103,8 +103,21 @@
     // --- HÀM TẠO NÚT TRÊN HEADER ---
     const createHeaderButton = () => {
         if (document.getElementById(BUTTON_ID)) return;
-        const rightButtonsContainer = document.querySelector('#masthead #end #buttons');
-        if (!rightButtonsContainer) return;
+
+        // Thử nhiều vị trí khác nhau để chèn nút
+        let container = document.querySelector('#masthead #end #buttons');
+
+        // Fallback 1: Nếu không có #buttons, tìm #end
+        if (!container) {
+            container = document.querySelector('#masthead #end');
+        }
+
+        // Fallback 2: Tìm container của Avatar/Sign in
+        if (!container) {
+            container = document.querySelector('div#buttons.ytd-masthead');
+        }
+
+        if (!container) return;
 
         const btnContainer = document.createElement('div');
         btnContainer.id = BUTTON_ID;
@@ -126,7 +139,8 @@
             fontFamily: 'Roboto, Arial, sans-serif',
             userSelect: 'none',
             transition: 'all 0.2s ease',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            zIndex: '9999' // Đảm bảo nổi lên trên
         });
 
         const label = document.createElement('span');
@@ -149,8 +163,14 @@
             console.log(`[Hunter] ${isHunterActive ? 'Activated' : 'Deactivated'}`);
         };
 
-        rightButtonsContainer.insertBefore(btnContainer, rightButtonsContainer.firstChild);
-        console.log('[Hunter] Button created');
+        // Chèn vào đầu container
+        if (container.firstChild) {
+            container.insertBefore(btnContainer, container.firstChild);
+        } else {
+            container.appendChild(btnContainer);
+        }
+
+        console.log('[Hunter] Button created at:', container);
     };
 
     // --- HÀM CLICK NÚT SKIP (CẢI TIẾN) ---
