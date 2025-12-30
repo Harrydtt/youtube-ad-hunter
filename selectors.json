@@ -1,0 +1,44 @@
+{
+    "version": "1.0.0",
+    "lastUpdated": "2024-12-30",
+    "skipSelectors": [
+        ".ytp-ad-skip-button",
+        ".ytp-ad-skip-button-modern",
+        ".ytp-ad-skip-button-slot",
+        ".ytp-skip-ad-button",
+        ".videoAdUiSkipButton",
+        "button.ytp-ad-skip-button",
+        "button[class*=\"skip\"]",
+        "[id=\"skip-button:\"]",
+        "button[aria-label^=\"Skip ad\"]",
+        "button[aria-label^=\"Skip Ad\"]",
+        "button[aria-label^=\"Bỏ qua\"]",
+        ".ytp-ad-skip-button-container button",
+        ".ytp-ad-overlay-close-button"
+    ],
+    "adHideSelectors": [
+        "ytd-ad-slot-renderer",
+        "ytd-banner-promo-renderer",
+        "ytd-statement-banner-renderer",
+        "ytd-in-feed-ad-layout-renderer",
+        "ytd-display-ad-renderer",
+        "#player-ads",
+        ".ytp-ad-overlay-container",
+        ".ytp-ad-text-overlay",
+        "ytd-promoted-sparkles-web-renderer",
+        "ytd-promoted-video-renderer",
+        "#masthead-ad",
+        "ytd-companion-slot-renderer"
+    ],
+    "surveySelectors": [
+        ".ytp-ad-survey",
+        ".ytp-ad-feedback-dialog-renderer",
+        "tp-yt-paper-dialog",
+        ".ytd-popup-container",
+        "ytd-enforcement-message-view-model"
+    ],
+    "adShowingSelectors": [
+        ".ad-showing",
+        ".ad-interrupting"
+    ]
+}
