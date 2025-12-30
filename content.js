@@ -97,21 +97,23 @@
         // 1. Click Skip ngay lập tức (Ưu tiên số 1)
         const skipped = clickSkipButtons();
 
-        // 2. Nếu chưa skip được bằng nút -> Dùng tua nhanh
-        // Kiểm tra readyState: Đảm bảo video đã có metadata (quan trọng cho Bumper 6s)
+        // 2. Luôn tắt tiếng ads (bất kể loại video nào)
+        video.muted = true;
+
+        // 3. Tăng tốc tối đa (16x) - luôn áp dụng
+        if (video.playbackRate < 16) video.playbackRate = 16;
+
+        // 4. Tua đến cuối (CHỈ khi duration hữu hạn - không phải Live)
         // readyState >= 1 = HAVE_METADATA (biết được duration)
         if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
-            video.muted = true; // Tắt tiếng để không nghe thấy tạp âm ads
-
-            // Ép xung tốc độ (Hack speed)
-            if (video.playbackRate < 16) video.playbackRate = 16;
-
             // Tua đến cuối (Spawn Kill)
-            // Logic: Nếu còn > 0.1s thì tua ngay về đích
             if (video.currentTime < video.duration - 0.1) {
                 video.currentTime = video.duration;
             }
         }
+        // Nếu duration = Infinity (Live stream ads):
+        // -> Đã mute + 16x speed ở trên, không tua (không thể tua Live)
+        // -> Ads sẽ chạy nhanh gấp 16 lần rồi tự hết
     };
 
     // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
