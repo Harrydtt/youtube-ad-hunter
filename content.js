@@ -103,21 +103,13 @@
         // 3. Tăng tốc tối đa (16x) - luôn áp dụng
         if (video.playbackRate < 16) video.playbackRate = 16;
 
-        // 4. Chiến lược Hybrid: Phân biệt Skippable vs Unskippable
-        // Check xem có nút Skip không?
-        const hasSkipButton = !!document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
-
-        if (hasSkipButton) {
-            // CASE A: CÓ nút Skip (Skippable Ads)
-            // -> Nhảy THẲNG đến cuối (Seek to duration) để kết thúc ngay lập tức
-            if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
-                video.currentTime = video.duration; // Nhảy thẳng, không cần -0.1
-            }
-        } else {
-            // CASE B: KHÔNG có nút Skip (Unskippable Ads, Bumper, hoặc chờ 5s)
-            // -> Chỉ dùng Speed 16x, KHÔNG tua để tránh màn hình đen
-            // -> Ads 15s sẽ hết trong ~0.9s nhờ speed 16x
+        // 4. Tua đến cuối ngay lập tức (CHỈ khi duration hữu hạn - không phải Live)
+        // Luôn seek ngay không điều kiện để đạt tốc độ tối đa
+        if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
+            video.currentTime = video.duration;
         }
+        // Nếu duration = Infinity (Live stream ads):
+        // -> Đã mute + 16x speed ở trên, không tua
     };
 
     // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
