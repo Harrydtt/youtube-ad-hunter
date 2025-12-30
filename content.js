@@ -129,39 +129,49 @@
             cursor: 'pointer',
             marginRight: '8px',
             marginLeft: '8px',
-            height: '36px',             // Chiều cao chuẩn nút Create (36px)
+            height: '36px',             // Chiều cao chuẩn 36px
+            maxHeight: '36px',          // Ép cứng chiều cao tối đa
             minWidth: '36px',
-            borderRadius: '18px',       // Bo tròn 18px
+            borderRadius: '18px',
             backgroundColor: '#cc0000',
             color: 'white',
-            padding: '0 12px',          // Padding gọn hơn
+            padding: '0 12px',
             fontSize: '14px',
             fontWeight: '500',
             fontFamily: 'Roboto, Arial, sans-serif',
             userSelect: 'none',
             transition: 'all 0.2s ease',
             boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            zIndex: '9999'
+            zIndex: '9999',
+            boxSizing: 'border-box'     // Đảm bảo padding không làm to nút
         });
 
-        // Tooltip (hiện khi hover - chuẩn UI/UX)
+        // Tooltip
         btnContainer.title = 'Extension: YouTube Ad Hunter';
 
         const label = document.createElement('div');
-        label.style.display = 'flex';
-        label.style.flexDirection = 'column';
-        label.style.alignItems = 'center';
-        label.style.lineHeight = '1.1'; // Line height thấp hơn để dồn dòng
+        Object.assign(label.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: '1',            // Line height tối thiểu
+            marginTop: '-1px'           // Căn chỉnh vi mô
+        });
 
         const mainText = document.createElement('span');
         mainText.textContent = '🎯 Hunter: ON';
-        mainText.style.fontSize = '13px'; // Bé hơn xíu cho cân đối với nút 36px
+        mainText.style.fontSize = '12px'; // Giảm thêm chút cho vừa vặn
+        mainText.style.fontWeight = '700';
 
         const subText = document.createElement('span');
         subText.textContent = 'by Ad Hunter';
-        subText.style.fontSize = '8px';  // Bé hẳn đi
-        subText.style.opacity = '0.9';
-        subText.style.fontWeight = '400';
+        Object.assign(subText.style, {
+            fontSize: '8px',
+            opacity: '0.9',
+            fontWeight: '400',
+            marginTop: '1px'            // Khoảng cách nhỏ với text chính
+        });
 
         label.appendChild(mainText);
         label.appendChild(subText);
