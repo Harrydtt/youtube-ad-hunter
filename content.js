@@ -1,6 +1,7 @@
 (function () {
     // --- CẤU HÌNH ---
-    let isHunterActive = true;
+    // Load state from localStorage, default to true
+    let isHunterActive = localStorage.getItem('hunter_status') !== 'false';
     const BUTTON_ID = 'youtube-hunter-btn';
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
@@ -76,14 +77,22 @@
 
         const btn = document.createElement('div');
         btn.id = BUTTON_ID;
+
+        // Initial style based on saved state
+        const bgColor = isHunterActive ? '#cc0000' : '#444';
+        const text = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
+
         Object.assign(btn.style, {
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            margin: '0 8px', height: '36px', borderRadius: '18px', backgroundColor: '#cc0000',
+            margin: '0 8px', height: '36px', borderRadius: '18px', backgroundColor: bgColor,
             color: 'white', padding: '0 12px', fontSize: '12px', fontWeight: '700', zIndex: '9999'
         });
-        btn.textContent = '🎯 Hunter: ON';
+        btn.textContent = text;
+
         btn.onclick = () => {
             isHunterActive = !isHunterActive;
+            localStorage.setItem('hunter_status', isHunterActive); // Save state
+
             btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
             btn.style.backgroundColor = isHunterActive ? '#cc0000' : '#444';
         };
