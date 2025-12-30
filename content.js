@@ -129,12 +129,12 @@
             cursor: 'pointer',
             marginRight: '8px',
             marginLeft: '8px',
-            height: '40px',             // Chiều cao chuẩn nút YouTube (Create/Notification)
-            minWidth: '40px',
-            borderRadius: '20px',       // Bo tròn chuẩn (half of height)
+            height: '36px',             // Chiều cao chuẩn nút Create (36px)
+            minWidth: '36px',
+            borderRadius: '18px',       // Bo tròn 18px
             backgroundColor: '#cc0000',
             color: 'white',
-            padding: '0 16px',          // Padding rộng hơn chút
+            padding: '0 12px',          // Padding gọn hơn
             fontSize: '14px',
             fontWeight: '500',
             fontFamily: 'Roboto, Arial, sans-serif',
@@ -151,15 +151,15 @@
         label.style.display = 'flex';
         label.style.flexDirection = 'column';
         label.style.alignItems = 'center';
-        label.style.lineHeight = '1.2';
+        label.style.lineHeight = '1.1'; // Line height thấp hơn để dồn dòng
 
         const mainText = document.createElement('span');
         mainText.textContent = '🎯 Hunter: ON';
-        mainText.style.fontSize = '14px';
+        mainText.style.fontSize = '13px'; // Bé hơn xíu cho cân đối với nút 36px
 
         const subText = document.createElement('span');
         subText.textContent = 'by Ad Hunter';
-        subText.style.fontSize = '10px';
+        subText.style.fontSize = '8px';  // Bé hẳn đi
         subText.style.opacity = '0.9';
         subText.style.fontWeight = '400';
 
