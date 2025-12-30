@@ -22,7 +22,11 @@
         'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer',
         'ytd-in-feed-ad-layout-renderer', 'ytd-display-ad-renderer', '#player-ads',
         '.ytp-ad-overlay-container', '.ytp-ad-text-overlay', 'ytd-promoted-sparkles-web-renderer',
-        'ytd-promoted-video-renderer', '#masthead-ad', 'ytd-companion-slot-renderer'
+        'ytd-promoted-video-renderer', '#masthead-ad', 'ytd-companion-slot-renderer',
+        // Premium Promo & Shorts Ads (v3.1)
+        '.yt-mealbar-promo-renderer', 'ytd-mealbar-promo-renderer',
+        'ytd-reel-video-renderer .ytp-ad-overlay-container',
+        '.ytd-merch-shelf-renderer', 'ytd-merch-shelf-renderer'
     ];
 
     let SURVEY_SELECTORS = ['.ytp-ad-survey', '.ytp-ad-feedback-dialog-renderer', 'tp-yt-paper-dialog', '.ytd-popup-container', 'ytd-enforcement-message-view-model'];
@@ -94,8 +98,9 @@
         const skipped = clickSkipButtons();
 
         // 2. Nếu chưa skip được bằng nút -> Dùng tua nhanh
-        // Chỉ tua khi video có độ dài hợp lệ (tránh tua nhầm video live/vô tận)
-        if (Number.isFinite(video.duration) && video.duration > 0) {
+        // Kiểm tra readyState: Đảm bảo video đã có metadata (quan trọng cho Bumper 6s)
+        // readyState >= 1 = HAVE_METADATA (biết được duration)
+        if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
             video.muted = true; // Tắt tiếng để không nghe thấy tạp âm ads
 
             // Ép xung tốc độ (Hack speed)

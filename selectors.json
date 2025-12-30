@@ -28,7 +28,12 @@
         "ytd-promoted-sparkles-web-renderer",
         "ytd-promoted-video-renderer",
         "#masthead-ad",
-        "ytd-companion-slot-renderer"
+        "ytd-companion-slot-renderer",
+        ".yt-mealbar-promo-renderer",
+        "ytd-mealbar-promo-renderer",
+        "ytd-reel-video-renderer .ytp-ad-overlay-container",
+        ".ytd-merch-shelf-renderer",
+        "ytd-merch-shelf-renderer"
     ],
     "surveySelectors": [
         ".ytp-ad-survey",
