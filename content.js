@@ -174,13 +174,31 @@
 
         // 1. Quản lý Event Listener (Cho trường hợp chuyển video SPA)
         if (video && video !== currentVideoElement) {
+            // Remove old listeners
             if (currentVideoElement) {
-                currentVideoElement.removeEventListener('loadedmetadata', onMetadataLoaded);
-                currentVideoElement.removeEventListener('durationchange', onMetadataLoaded);
+                ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay', 'timeupdate'].forEach(evt => {
+                    currentVideoElement.removeEventListener(evt, onMetadataLoaded);
+                });
             }
             currentVideoElement = video;
-            video.addEventListener('loadedmetadata', onMetadataLoaded);
-            video.addEventListener('durationchange', onMetadataLoaded);
+
+            // Add aggressive listeners to catch Ad 2 ASAP
+            // - loadedmetadata: Khi có thông tin duration
+            // - durationchange: Khi duration thay đổi (Ad 1 -> Ad 2)
+            // - play: Ngay khi video bắt đầu play
+            // - playing: Khi video đang chạy
+            // - canplay: Khi đủ buffer để play
+            // - timeupdate: Mỗi khi currentTime thay đổi (backup cuối cùng)
+            ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
+                video.addEventListener(evt, onMetadataLoaded);
+            });
+
+            // timeupdate chạy quá nhiều (mỗi 250ms), chỉ dùng cho lần đầu
+            const onFirstTimeUpdate = (e) => {
+                onMetadataLoaded(e);
+                video.removeEventListener('timeupdate', onFirstTimeUpdate);
+            };
+            video.addEventListener('timeupdate', onFirstTimeUpdate);
         }
 
         const isAd = checkIfAdIsShowing();
