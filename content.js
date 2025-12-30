@@ -109,11 +109,9 @@
 
         if (hasSkipButton) {
             // CASE A: CÓ nút Skip (Skippable Ads)
-            // -> Tua đến cuối (Seek) để kết thúc nhanh nhất
+            // -> Nhảy THẲNG đến cuối (Seek to duration) để kết thúc ngay lập tức
             if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
-                if (video.currentTime < video.duration - 0.1) {
-                    video.currentTime = video.duration;
-                }
+                video.currentTime = video.duration; // Nhảy thẳng, không cần -0.1
             }
         } else {
             // CASE B: KHÔNG có nút Skip (Unskippable Ads, Bumper, hoặc chờ 5s)
