@@ -2,81 +2,48 @@
     // --- CẤU HÌNH ---
     let isHunterActive = true;
     const BUTTON_ID = 'youtube-hunter-btn';
-
-    // URL của file JSON trên GitHub
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
-    const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 giờ
+    const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
-    // --- SELECTORS MẶC ĐỊNH (FALLBACK) ---
+    // --- BIẾN TOÀN CỤC ---
+    let currentVideoElement = null;
+    let isAdProcessing = false; // Cờ đánh dấu đang xử lý ads
+
+    // --- SELECTORS MẶC ĐỊNH ---
     let SKIP_SELECTORS = [
-        '.ytp-ad-skip-button',
-        '.ytp-ad-skip-button-modern',
-        '.ytp-ad-skip-button-slot',
-        '.ytp-skip-ad-button',
-        '.videoAdUiSkipButton',
-        'button.ytp-ad-skip-button',
-        'button[class*="skip"]',
-        '[id="skip-button:"]',
-        'button[aria-label^="Skip ad"]',
-        'button[aria-label^="Skip Ad"]',
-        'button[aria-label^="Bỏ qua"]',           // Tiếng Việt
-        '.ytp-ad-skip-button-container button',
-        '.ytp-ad-overlay-close-button',           // Overlay close
+        '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.ytp-ad-skip-button-slot',
+        '.ytp-skip-ad-button', '.videoAdUiSkipButton', 'button.ytp-ad-skip-button',
+        'button[class*="skip"]', '[id="skip-button:"]', 'button[aria-label^="Skip ad"]',
+        'button[aria-label^="Skip Ad"]', 'button[aria-label^="Bỏ qua"]',
+        '.ytp-ad-skip-button-container button', '.ytp-ad-overlay-close-button'
     ];
 
-    // --- SELECTORS CHO QUẢNG CÁO CẦN ẨN ---
     let AD_HIDE_SELECTORS = [
-        'ytd-ad-slot-renderer',                   // Sidebar ads
-        'ytd-banner-promo-renderer',              // Banner promos
-        'ytd-statement-banner-renderer',          // Statement banners
-        'ytd-in-feed-ad-layout-renderer',         // In-feed ads
-        'ytd-display-ad-renderer',                // Display ads
-        '#player-ads',                            // Player ads container
-        '.ytp-ad-overlay-container',              // Overlay ads
-        '.ytp-ad-text-overlay',                   // Text overlay
-        'ytd-promoted-sparkles-web-renderer',     // Promoted content
-        'ytd-promoted-video-renderer',            // Promoted videos
-        '#masthead-ad',                           // Masthead ad
-        'ytd-companion-slot-renderer',            // Companion ads
+        'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer',
+        'ytd-in-feed-ad-layout-renderer', 'ytd-display-ad-renderer', '#player-ads',
+        '.ytp-ad-overlay-container', '.ytp-ad-text-overlay', 'ytd-promoted-sparkles-web-renderer',
+        'ytd-promoted-video-renderer', '#masthead-ad', 'ytd-companion-slot-renderer'
     ];
 
-    // --- SELECTORS CHO SURVEY/POPUP ---
-    let SURVEY_SELECTORS = [
-        '.ytp-ad-survey',
-        '.ytp-ad-feedback-dialog-renderer',
-        'tp-yt-paper-dialog',
-        '.ytd-popup-container',
-        'ytd-enforcement-message-view-model',     // Ad blocker warning
-    ];
+    let SURVEY_SELECTORS = ['.ytp-ad-survey', '.ytp-ad-feedback-dialog-renderer', 'tp-yt-paper-dialog', '.ytd-popup-container', 'ytd-enforcement-message-view-model'];
 
-    // --- AUTO-UPDATE SELECTORS TỪ GITHUB ---
+    // --- HÀM CẬP NHẬT SELECTORS ---
     const updateSelectorsFromGithub = async () => {
         try {
             const lastUpdate = localStorage.getItem('hunter_selectors_updated');
             const now = Date.now();
-
-            // Kiểm tra nếu đã update gần đây
             if (lastUpdate && (now - parseInt(lastUpdate)) < UPDATE_INTERVAL) {
                 const cached = localStorage.getItem('hunter_selectors');
-                if (cached) {
-                    applySelectors(JSON.parse(cached));
-                    console.log('[Hunter] Loaded selectors from cache');
-                    return;
-                }
+                if (cached) { applySelectors(JSON.parse(cached)); return; }
             }
-
-            // Fetch từ GitHub
             const response = await fetch(SELECTORS_URL);
             if (response.ok) {
                 const data = await response.json();
                 applySelectors(data);
                 localStorage.setItem('hunter_selectors', JSON.stringify(data));
                 localStorage.setItem('hunter_selectors_updated', now.toString());
-                console.log(`[Hunter] Updated selectors v${data.version}`);
             }
-        } catch (error) {
-            console.log('[Hunter] Using default selectors (GitHub unreachable)');
-        }
+        } catch (e) { console.log('[Hunter] Using default selectors'); }
     };
 
     const applySelectors = (data) => {
@@ -86,294 +53,180 @@
         updateAdHideCSS();
     };
 
-    // --- CSS INJECTION (CẬP NHẬT ĐỘNG) ---
-    let adHideStyleElement = null;
-
+    // --- CSS INJECTION ---
     const updateAdHideCSS = () => {
-        if (adHideStyleElement) adHideStyleElement.remove();
-        adHideStyleElement = document.createElement('style');
-        adHideStyleElement.id = 'hunter-hide-ads';
-        adHideStyleElement.textContent = `
-            ${AD_HIDE_SELECTORS.join(', ')} { display: none !important; }
-            .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-overlay-slot { display: none !important; }
-        `;
-        document.head.appendChild(adHideStyleElement);
+        const id = 'hunter-hide-ads';
+        const existing = document.getElementById(id);
+        if (existing) existing.remove();
+        const style = document.createElement('style');
+        style.id = id;
+        style.textContent = `${AD_HIDE_SELECTORS.join(', ')} { display: none !important; } .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-overlay-slot { display: none !important; }`;
+        document.head.appendChild(style);
     };
 
-    // --- HÀM TẠO NÚT TRÊN HEADER ---
+    // --- GUI BUTTON ---
     const createHeaderButton = () => {
         if (document.getElementById(BUTTON_ID)) return;
-
-        // Thử nhiều vị trí khác nhau để chèn nút
-        let container = document.querySelector('#masthead #end #buttons');
-
-        // Fallback 1: Nếu không có #buttons, tìm #end
-        if (!container) {
-            container = document.querySelector('#masthead #end');
-        }
-
-        // Fallback 2: Tìm container của Avatar/Sign in
-        if (!container) {
-            container = document.querySelector('div#buttons.ytd-masthead');
-        }
-
+        let container = document.querySelector('#masthead #end #buttons') || document.querySelector('#masthead #end') || document.querySelector('div#buttons.ytd-masthead');
         if (!container) return;
 
-        const btnContainer = document.createElement('div');
-        btnContainer.id = BUTTON_ID;
-
-        Object.assign(btnContainer.style, {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            marginRight: '8px',
-            marginLeft: '8px',
-            height: '36px',             // Chiều cao chuẩn 36px
-            maxHeight: '36px',          // Ép cứng chiều cao tối đa
-            minWidth: '36px',
-            borderRadius: '18px',
-            backgroundColor: '#cc0000',
-            color: 'white',
-            padding: '0 12px',
-            fontSize: '14px',
-            fontWeight: '500',
-            fontFamily: 'Roboto, Arial, sans-serif',
-            userSelect: 'none',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            zIndex: '9999',
-            boxSizing: 'border-box'     // Đảm bảo padding không làm to nút
+        const btn = document.createElement('div');
+        btn.id = BUTTON_ID;
+        Object.assign(btn.style, {
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            margin: '0 8px', height: '36px', borderRadius: '18px', backgroundColor: '#cc0000',
+            color: 'white', padding: '0 12px', fontSize: '12px', fontWeight: '700', zIndex: '9999'
         });
-
-        // Tooltip
-        btnContainer.title = 'Extension: YouTube Ad Hunter';
-
-        const label = document.createElement('div');
-        Object.assign(label.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            lineHeight: '1',            // Line height tối thiểu
-            marginTop: '-1px'           // Căn chỉnh vi mô
-        });
-
-        const mainText = document.createElement('span');
-        mainText.textContent = '🎯 Hunter: ON';
-        mainText.style.fontSize = '12px'; // Giảm thêm chút cho vừa vặn
-        mainText.style.fontWeight = '700';
-
-        const subText = document.createElement('span');
-        subText.textContent = 'by Ad Hunter';
-        Object.assign(subText.style, {
-            fontSize: '8px',
-            opacity: '0.9',
-            fontWeight: '400',
-            marginTop: '1px'            // Khoảng cách nhỏ với text chính
-        });
-
-        label.appendChild(mainText);
-        label.appendChild(subText);
-        btnContainer.appendChild(label);
-
-        // Hover effect
-        btnContainer.onmouseenter = () => {
-            btnContainer.style.transform = 'scale(1.05)';
-        };
-        btnContainer.onmouseleave = () => {
-            btnContainer.style.transform = 'scale(1)';
-        };
-
-        btnContainer.onclick = () => {
+        btn.textContent = '🎯 Hunter: ON';
+        btn.onclick = () => {
             isHunterActive = !isHunterActive;
-            mainText.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
-            btnContainer.style.backgroundColor = isHunterActive ? '#cc0000' : '#444';
-            btnContainer.style.color = isHunterActive ? 'white' : '#aaa';
-            console.log(`[Hunter] ${isHunterActive ? 'Activated' : 'Deactivated'}`);
+            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
+            btn.style.backgroundColor = isHunterActive ? '#cc0000' : '#444';
         };
-
-        // Chèn vào đầu container
-        if (container.firstChild) {
-            container.insertBefore(btnContainer, container.firstChild);
-        } else {
-            container.appendChild(btnContainer);
-        }
-
-        console.log('[Hunter] Button created at:', container);
+        container.insertBefore(btn, container.firstChild);
     };
 
-    // --- HÀM CLICK NÚT SKIP (CẢI TIẾN) ---
+    // --- CORE LOGIC: XỬ LÝ 1 VIDEO ADS ---
+    const killActiveAd = (video) => {
+        if (!video) return;
+
+        // 1. Click Skip ngay lập tức (Ưu tiên số 1)
+        const skipped = clickSkipButtons();
+
+        // 2. Nếu chưa skip được bằng nút -> Dùng tua nhanh
+        // Chỉ tua khi video có độ dài hợp lệ (tránh tua nhầm video live/vô tận)
+        if (Number.isFinite(video.duration) && video.duration > 0) {
+            video.muted = true; // Tắt tiếng để không nghe thấy tạp âm ads
+
+            // Ép xung tốc độ (Hack speed)
+            if (video.playbackRate < 16) video.playbackRate = 16;
+
+            // Tua đến cuối (Spawn Kill)
+            // Logic: Nếu còn > 0.1s thì tua ngay về đích
+            if (video.currentTime < video.duration - 0.1) {
+                video.currentTime = video.duration;
+            }
+        }
+    };
+
+    // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
+    // Đây là chìa khóa để xử lý 2 Ads liên tục và Mid-roll
+    const onMetadataLoaded = (e) => {
+        if (!isHunterActive) return;
+        const video = e.target;
+
+        // Check ngay xem lúc video load lên thì có class quảng cáo không
+        if (checkIfAdIsShowing()) {
+            killActiveAd(video);
+        }
+    };
+
+    // --- HÀM KIỂM TRA TRẠNG THÁI ADS ---
+    const checkIfAdIsShowing = () => {
+        const adElement = document.querySelector('.ad-showing, .ad-interrupting');
+        // Đôi khi class chưa kịp add, check thêm sự tồn tại của nút skip hoặc overlay
+        const skipBtn = document.querySelector('.ytp-ad-skip-button');
+        return !!(adElement || skipBtn);
+    };
+
+    // --- HÀM CLICK NÚT SKIP ---
     const clickSkipButtons = () => {
         let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
-            const buttons = document.querySelectorAll(selector);
-            buttons.forEach(btn => {
-                if (btn && btn.offsetParent !== null) { // Kiểm tra visible
-                    try {
-                        btn.click();
-                        clicked = true;
-                        console.log(`[Hunter] Clicked: ${selector}`);
-                    } catch (e) {
-                        // Thử dispatch event nếu click() không work
-                        btn.dispatchEvent(new MouseEvent('click', {
-                            bubbles: true,
-                            cancelable: true,
-                            view: window
-                        }));
-                    }
+            document.querySelectorAll(selector).forEach(btn => {
+                if (btn && btn.offsetParent !== null) { // Visible
+                    btn.click();
+                    clicked = true;
                 }
             });
         });
         return clicked;
     };
 
-    // --- HÀM ẨN QUẢNG CÁO STATIC ---
     const hideStaticAds = () => {
-        AD_HIDE_SELECTORS.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(el => {
-                if (el && el.style.display !== 'none') {
-                    el.style.display = 'none';
-                    console.log(`[Hunter] Hidden: ${selector}`);
-                }
-            });
+        AD_HIDE_SELECTORS.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
         });
     };
 
-    // --- HÀM SKIP SURVEY ---
     const skipSurveys = () => {
-        SURVEY_SELECTORS.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(el => {
-                if (el) {
-                    // Tìm nút close/skip trong survey
-                    const closeBtn = el.querySelector('[aria-label="Close"], [aria-label="Đóng"], button');
-                    if (closeBtn) {
-                        closeBtn.click();
-                        console.log(`[Hunter] Survey closed: ${selector}`);
-                    } else {
-                        el.remove();
-                        console.log(`[Hunter] Survey removed: ${selector}`);
-                    }
-                }
+        SURVEY_SELECTORS.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                const close = el.querySelector('button');
+                if (close) close.click(); else el.remove();
             });
         });
     };
 
-    // --- LOGIC DIỆT QUẢNG CÁO CHÍNH (BẢN NÂNG CẤP) ---
+    // --- VÒNG LẶP CHÍNH (QUÉT LIÊN TỤC 50ms) ---
     const runHunter = () => {
         createHeaderButton();
         if (!isHunterActive) return;
 
         const video = document.querySelector('video');
-        const adShowing = document.querySelector('.ad-showing, .ad-interrupting');
 
-        // Cập nhật selector này để bắt cả nút skip dạng mới nhất
-        // Đôi khi nút skip xuất hiện nhưng chưa visible, ta vẫn click
-        const skipped = clickSkipButtons();
-
-        if (adShowing && video) {
-            // Đang có quảng cáo
-
-            // 1. Tắt tiếng ngay lập tức
-            video.muted = true;
-
-            // 2. Tăng tốc tối đa (ép xung)
-            // Ép playbackRate liên tục vì YouTube hay reset về 1
-            if (video.playbackRate < 16) {
-                video.playbackRate = 16;
+        // 1. Quản lý Event Listener (Cho trường hợp chuyển video SPA)
+        if (video && video !== currentVideoElement) {
+            if (currentVideoElement) {
+                currentVideoElement.removeEventListener('loadedmetadata', onMetadataLoaded);
+                currentVideoElement.removeEventListener('durationchange', onMetadataLoaded);
             }
-
-            // 3. Tua nhanh đến cuối (Hack duration)
-            // Chỉ tua nếu chưa bấm được nút skip (để tránh xung đột lệnh)
-            if (!skipped && Number.isFinite(video.duration)) {
-                // Nếu video còn dài hơn 0.1s thì mới tua
-                if (video.currentTime < video.duration - 0.1) {
-                    video.currentTime = video.duration - 0.1;
-                }
-            }
-
-        } else {
-            // Không có quảng cáo hoặc quảng cáo đã hết
-            if (video) {
-                // Chỉ reset khi chắc chắn không còn class quảng cáo
-                // Và video đang chạy quá nhanh (dấu hiệu vừa thoát ad)
-                if (video.playbackRate > 1 && !adShowing) {
-                    video.playbackRate = 1;
-                    video.muted = false;
-                }
-            }
-
-            // Hiện lại controls nếu bị ẩn
-            const controls = document.querySelector('.ytp-chrome-bottom');
-            if (controls && controls.style.opacity === '0') {
-                controls.style.opacity = 1;
-                controls.style.display = 'block';
-            }
+            currentVideoElement = video;
+            video.addEventListener('loadedmetadata', onMetadataLoaded);
+            video.addEventListener('durationchange', onMetadataLoaded);
         }
 
-        // Luôn ẩn static ads và surveys
+        const isAd = checkIfAdIsShowing();
+
+        if (isAd && video) {
+            // ĐANG CÓ ADS
+            isAdProcessing = true;
+            killActiveAd(video);
+        } else {
+            // KHÔNG CÓ ADS
+            // Chỉ restore video chính khi chắc chắn vừa thoát khỏi trạng thái xử lý ads
+            if (isAdProcessing && video) {
+                if (video.muted) video.muted = false;
+                if (video.playbackRate > 1) video.playbackRate = 1;
+                isAdProcessing = false;
+            }
+
+            // Fix lỗi mất controls khi hết ads
+            const controls = document.querySelector('.ytp-chrome-bottom');
+            if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
+        }
+
         hideStaticAds();
         skipSurveys();
     };
 
-    // --- MUTATION OBSERVER (PHẢN ỨNG NHANH) ---
+    // --- MUTATION OBSERVER (HỖ TRỢ MID-ROLL) ---
+    // Giúp phát hiện khoảnh khắc class 'ad-showing' được add vào giữa video
     const observer = new MutationObserver((mutations) => {
         if (!isHunterActive) return;
-
         for (const mutation of mutations) {
-            // Kiểm tra nếu có element mới liên quan đến quảng cáo
-            if (mutation.addedNodes.length > 0) {
-                const target = mutation.target;
-                if (target.classList &&
-                    (target.classList.contains('ad-showing') ||
-                        target.classList.contains('ad-interrupting') ||
-                        target.classList.contains('ytp-ad-player-overlay'))) {
+            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'src')) {
+                if (checkIfAdIsShowing()) {
                     runHunter();
-                    return;
-                }
-            }
-
-            // Kiểm tra class changes
-            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                const classList = mutation.target.classList;
-                if (classList && classList.contains('ad-showing')) {
-                    runHunter();
-                    return;
                 }
             }
         }
     });
 
-    // Start observing
-    const startObserver = () => {
-        const player = document.querySelector('#movie_player');
-        if (player) {
-            observer.observe(player, {
-                attributes: true,
-                childList: true,
-                subtree: true,
-                attributeFilter: ['class']
-            });
-            console.log('[Hunter] MutationObserver started');
-        }
-    };
-
     // --- KHỞI ĐỘNG ---
     updateSelectorsFromGithub();
     updateAdHideCSS();
 
-    // THAY ĐỔI QUAN TRỌNG: Giảm thời gian loop xuống 50ms (cũ là 200ms)
-    // Giúp phản xạ nhanh gấp 4 lần khi chuyển giao giữa Ad 1 và Ad 2
+    // Interval cực nhanh để bắt 2 ads liên tiếp
     setInterval(runHunter, 50);
 
     const waitForPlayer = setInterval(() => {
-        if (document.querySelector('#movie_player')) {
-            startObserver();
+        const player = document.querySelector('#movie_player');
+        if (player) {
+            observer.observe(player, { attributes: true, subtree: true, attributeFilter: ['class', 'src'] });
             clearInterval(waitForPlayer);
         }
     }, 500);
 
-    console.log('[Hunter] Extension Loaded v2.2 🚀 (Aggressive Mode)');
+    console.log('[Hunter] Loaded v3.0: 1-Ad, 2-Ads, Mid-roll supported 🛡️');
 })();
