@@ -3,8 +3,8 @@
     let isHunterActive = true;
     const BUTTON_ID = 'youtube-hunter-btn';
 
-    // URL của file JSON trên GitHub (thay bằng URL thật của bạn)
-    const SELECTORS_URL = 'https://raw.githubusercontent.com/YOUR_USERNAME/youtube-ad-hunter/main/selectors.json';
+    // URL của file JSON trên GitHub
+    const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 giờ
 
     // --- SELECTORS MẶC ĐỊNH (FALLBACK) ---
