@@ -112,18 +112,13 @@
         // 3. Tăng tốc tối đa (16x) - luôn áp dụng
         if (video.playbackRate < 16) video.playbackRate = 16;
 
-        // 4. Tua đến GẦN cuối (CHỈ khi duration hữu hạn - không phải Live)
-        // Thay vì nhảy thẳng đến duration (dễ gây hang), ta nhảy đến duration - 0.1s
-        // Để 16x speed tự chạy nốt 0.1s cuối -> Trigger sự kiện 'ended' tự nhiên nhất
-        if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
-            if (video.currentTime < video.duration - 0.1) {
-                video.currentTime = video.duration - 0.1;
-                // Force play để đảm bảo video chạy nốt đoạn cuối
-                if (video.paused) video.play();
-            }
-        }
-        // Nếu duration = Infinity (Live stream ads):
-        // -> Đã mute + 16x speed ở trên, không tua
+        // 4. Tuyệt đối KHÔNG tua (Seek) nữa
+        // Việc tua đến cuối video ads (nhất là loại unskippable) khiến Youtube Player bị khựng (stall)
+        // dẫn đến màn hình đen 3-5s để buffer lại.
+        // Thay vào đó, ta chỉ dùng Speed 16x.
+        // - Ads 15s -> chạy trong ~1s
+        // - Ads 30s -> chạy trong ~2s
+        // Nhanh, mượt và không bao giờ bị lỗi màn hình đen.
     };
 
     // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
