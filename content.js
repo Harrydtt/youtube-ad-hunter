@@ -8,7 +8,6 @@
 
     // --- BIẾN TOÀN CỤC ---
     let currentVideoElement = null;
-    let isAdProcessing = false; // Cờ đánh dấu đang xử lý ads
 
     // --- SELECTORS MẶC ĐỊNH ---
     let SKIP_SELECTORS = [
@@ -99,69 +98,90 @@
         container.insertBefore(btn, container.firstChild);
     };
 
-    // --- CORE LOGIC: XỬ LÝ 1 VIDEO ADS ---
+    // --- CORE LOGIC: XỬ LÝ ADS ---
     const killActiveAd = (video) => {
         if (!video) return;
 
         // 1. Click Skip ngay lập tức (Ưu tiên số 1)
-        const skipped = clickSkipButtons();
+        clickSkipButtons();
 
-        // 2. Luôn tắt tiếng ads (bất kể loại video nào)
+        // 2. Luôn tắt tiếng ads
         video.muted = true;
 
-        // 3. Tăng tốc tối đa (16x) - luôn áp dụng
+        // 3. Tăng tốc tối đa (16x)
         if (video.playbackRate < 16) video.playbackRate = 16;
 
-        // 4. Tuyệt đối KHÔNG tua (Seek) nữa
-        // Việc tua đến cuối video ads (nhất là loại unskippable) khiến Youtube Player bị khựng (stall)
-        // dẫn đến màn hình đen 3-5s để buffer lại.
-        // Thay vào đó, ta chỉ dùng Speed 16x.
-        // - Ads 15s -> chạy trong ~1s
-        // - Ads 30s -> chạy trong ~2s
-        // Nhanh, mượt và không bao giờ bị lỗi màn hình đen.
+        // 4. Force Play nếu bị pause (để tránh màn hình đen đứng yên)
+        if (video.paused) video.play();
+
+        // 5. Tuyệt đối KHÔNG tua (Seek)
+        // Việc tua khiến server từ chối phục vụ -> Màn hình đen lâu.
+        // Chỉ dùng Speed 16x là đủ nhanh (0.9s cho ads 15s) và an toàn.
     };
 
-    // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
-    // Đây là chìa khóa để xử lý 2 Ads liên tục và Mid-roll
-    const onMetadataLoaded = (e) => {
+    // --- EVENT LISTENER ---
+    const onVideoEvent = (e) => {
         if (!isHunterActive) return;
-        const video = e.target;
-
-        // Check ngay xem lúc video load lên thì có class quảng cáo không
+        // Check ngay khi video có sự kiện mới
         if (checkIfAdIsShowing()) {
-            killActiveAd(video);
+            killActiveAd(e.target);
         }
     };
 
     // --- HÀM KIỂM TRA TRẠNG THÁI ADS ---
     const checkIfAdIsShowing = () => {
         const adElement = document.querySelector('.ad-showing, .ad-interrupting');
-        // Đôi khi class chưa kịp add, check thêm sự tồn tại của nút skip hoặc overlay
         const skipBtn = document.querySelector('.ytp-ad-skip-button');
         return !!(adElement || skipBtn);
     };
 
     // --- HÀM CLICK NÚT SKIP ---
     const clickSkipButtons = () => {
-        let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
                 if (btn && btn.offsetParent !== null) { // Visible
                     btn.click();
-                    clicked = true;
                 }
             });
         });
-        return clicked;
     };
 
-    const hideStaticAds = () => {
-        AD_HIDE_SELECTORS.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
-        });
-    };
+    // --- VÒNG LẶP CHÍNH ---
+    const runHunter = () => {
+        createHeaderButton();
+        if (!isHunterActive) return;
 
-    const skipSurveys = () => {
+        const video = document.querySelector('video');
+
+        // 1. Quản lý Event Listener gọn gàng
+        if (video && video !== currentVideoElement) {
+            // Remove old listeners
+            if (currentVideoElement) {
+                ['loadedmetadata', 'play', 'playing'].forEach(evt => {
+                    currentVideoElement.removeEventListener(evt, onVideoEvent);
+                });
+            }
+            currentVideoElement = video;
+            // Add listeners
+            ['loadedmetadata', 'play', 'playing'].forEach(evt => {
+                video.addEventListener(evt, onVideoEvent);
+            });
+        }
+
+        // 2. Xử lý Ads liên tục
+        if (checkIfAdIsShowing() && video) {
+            killActiveAd(video);
+        } else {
+            // Restore video chính (nếu cần) khi hết ads
+            if (video && !checkIfAdIsShowing() && (video.muted || video.playbackRate > 1)) {
+                // Chỉ restore nhẹ nhàng, tránh conflict
+                if (video.playbackRate === 16) video.playbackRate = 1;
+                if (video.muted) video.muted = false;
+            }
+        }
+
+        // 3. Ẩn ads rác
+        updateAdHideCSS(); // Đảm bảo CSS luôn inject
         SURVEY_SELECTORS.forEach(sel => {
             document.querySelectorAll(sel).forEach(el => {
                 const close = el.querySelector('button');
@@ -170,93 +190,12 @@
         });
     };
 
-    // --- VÒNG LẶP CHÍNH (QUÉT LIÊN TỤC 50ms) ---
-    const runHunter = () => {
-        createHeaderButton();
-        if (!isHunterActive) return;
-
-        const video = document.querySelector('video');
-
-        // 1. Quản lý Event Listener (Cho trường hợp chuyển video SPA)
-        if (video && video !== currentVideoElement) {
-            // Remove old listeners
-            if (currentVideoElement) {
-                ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay', 'timeupdate'].forEach(evt => {
-                    currentVideoElement.removeEventListener(evt, onMetadataLoaded);
-                });
-            }
-            currentVideoElement = video;
-
-            // Add aggressive listeners to catch Ad 2 ASAP
-            // - loadedmetadata: Khi có thông tin duration
-            // - durationchange: Khi duration thay đổi (Ad 1 -> Ad 2)
-            // - play: Ngay khi video bắt đầu play
-            // - playing: Khi video đang chạy
-            // - canplay: Khi đủ buffer để play
-            // - timeupdate: Mỗi khi currentTime thay đổi (backup cuối cùng)
-            ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
-                video.addEventListener(evt, onMetadataLoaded);
-            });
-
-            // timeupdate chạy quá nhiều (mỗi 250ms), chỉ dùng cho lần đầu
-            const onFirstTimeUpdate = (e) => {
-                onMetadataLoaded(e);
-                video.removeEventListener('timeupdate', onFirstTimeUpdate);
-            };
-            video.addEventListener('timeupdate', onFirstTimeUpdate);
-        }
-
-        const isAd = checkIfAdIsShowing();
-
-        if (isAd && video) {
-            // ĐANG CÓ ADS
-            isAdProcessing = true;
-            killActiveAd(video);
-        } else {
-            // KHÔNG CÓ ADS
-            // Chỉ restore video chính khi chắc chắn vừa thoát khỏi trạng thái xử lý ads
-            if (isAdProcessing && video) {
-                if (video.muted) video.muted = false;
-                if (video.playbackRate > 1) video.playbackRate = 1;
-                isAdProcessing = false;
-            }
-
-            // Fix lỗi mất controls khi hết ads
-            const controls = document.querySelector('.ytp-chrome-bottom');
-            if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
-        }
-
-        hideStaticAds();
-        skipSurveys();
-    };
-
-    // --- MUTATION OBSERVER (HỖ TRỢ MID-ROLL) ---
-    // Giúp phát hiện khoảnh khắc class 'ad-showing' được add vào giữa video
-    const observer = new MutationObserver((mutations) => {
-        if (!isHunterActive) return;
-        for (const mutation of mutations) {
-            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'src')) {
-                if (checkIfAdIsShowing()) {
-                    runHunter();
-                }
-            }
-        }
-    });
-
     // --- KHỞI ĐỘNG ---
     updateSelectorsFromGithub();
     updateAdHideCSS();
 
-    // Interval cực nhanh để bắt 2 ads liên tiếp
-    setInterval(runHunter, 50);
+    // Loop kiểm tra mỗi 100ms
+    setInterval(runHunter, 100);
 
-    const waitForPlayer = setInterval(() => {
-        const player = document.querySelector('#movie_player');
-        if (player) {
-            observer.observe(player, { attributes: true, subtree: true, attributeFilter: ['class', 'src'] });
-            clearInterval(waitForPlayer);
-        }
-    }, 500);
-
-    console.log('[Hunter] Loaded v3.0: 1-Ad, 2-Ads, Mid-roll supported 🛡️');
+    console.log('[Hunter] Loaded v3.7: Stable Speed Mode 🛡️');
 })();
