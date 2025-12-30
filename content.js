@@ -261,33 +261,53 @@
         });
     };
 
-    // --- LOGIC DIỆT QUẢNG CÁO CHÍNH ---
+    // --- LOGIC DIỆT QUẢNG CÁO CHÍNH (BẢN NÂNG CẤP) ---
     const runHunter = () => {
         createHeaderButton();
         if (!isHunterActive) return;
 
         const video = document.querySelector('video');
         const adShowing = document.querySelector('.ad-showing, .ad-interrupting');
-        const controls = document.querySelector('.ytp-chrome-bottom');
+
+        // Cập nhật selector này để bắt cả nút skip dạng mới nhất
+        // Đôi khi nút skip xuất hiện nhưng chưa visible, ta vẫn click
+        const skipped = clickSkipButtons();
 
         if (adShowing && video) {
             // Đang có quảng cáo
-            video.muted = true;
-            video.playbackRate = 16;
 
-            // Nhảy đến cuối video quảng cáo
-            if (Number.isFinite(video.duration) && video.currentTime < video.duration - 0.2) {
-                video.currentTime = video.duration - 0.1;
+            // 1. Tắt tiếng ngay lập tức
+            video.muted = true;
+
+            // 2. Tăng tốc tối đa (ép xung)
+            // Ép playbackRate liên tục vì YouTube hay reset về 1
+            if (video.playbackRate < 16) {
+                video.playbackRate = 16;
             }
 
-            // Click tất cả nút skip
-            clickSkipButtons();
+            // 3. Tua nhanh đến cuối (Hack duration)
+            // Chỉ tua nếu chưa bấm được nút skip (để tránh xung đột lệnh)
+            if (!skipped && Number.isFinite(video.duration)) {
+                // Nếu video còn dài hơn 0.1s thì mới tua
+                if (video.currentTime < video.duration - 0.1) {
+                    video.currentTime = video.duration - 0.1;
+                }
+            }
 
-        } else if (video && video.playbackRate > 2) {
-            // Quảng cáo đã kết thúc, reset lại
-            video.playbackRate = 1;
-            video.muted = false;
-            if (controls) {
+        } else {
+            // Không có quảng cáo hoặc quảng cáo đã hết
+            if (video) {
+                // Chỉ reset khi chắc chắn không còn class quảng cáo
+                // Và video đang chạy quá nhanh (dấu hiệu vừa thoát ad)
+                if (video.playbackRate > 1 && !adShowing) {
+                    video.playbackRate = 1;
+                    video.muted = false;
+                }
+            }
+
+            // Hiện lại controls nếu bị ẩn
+            const controls = document.querySelector('.ytp-chrome-bottom');
+            if (controls && controls.style.opacity === '0') {
                 controls.style.opacity = 1;
                 controls.style.display = 'block';
             }
@@ -341,16 +361,13 @@
     };
 
     // --- KHỞI ĐỘNG ---
-    // Update selectors từ GitHub
     updateSelectorsFromGithub();
-
-    // Inject CSS ban đầu
     updateAdHideCSS();
 
-    // Chạy interval
-    setInterval(runHunter, 200);
+    // THAY ĐỔI QUAN TRỌNG: Giảm thời gian loop xuống 50ms (cũ là 200ms)
+    // Giúp phản xạ nhanh gấp 4 lần khi chuyển giao giữa Ad 1 và Ad 2
+    setInterval(runHunter, 50);
 
-    // Start observer khi player sẵn sàng
     const waitForPlayer = setInterval(() => {
         if (document.querySelector('#movie_player')) {
             startObserver();
@@ -358,5 +375,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] Extension Loaded v2.1 🎯 (Auto-update enabled)');
+    console.log('[Hunter] Extension Loaded v2.2 🚀 (Aggressive Mode)');
 })();
