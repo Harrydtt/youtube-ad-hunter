@@ -129,22 +129,42 @@
             cursor: 'pointer',
             marginRight: '8px',
             marginLeft: '8px',
-            height: '32px',
-            borderRadius: '16px',
+            height: '40px',             // Chiều cao chuẩn nút YouTube (Create/Notification)
+            minWidth: '40px',
+            borderRadius: '20px',       // Bo tròn chuẩn (half of height)
             backgroundColor: '#cc0000',
             color: 'white',
-            padding: '0 12px',
+            padding: '0 16px',          // Padding rộng hơn chút
             fontSize: '14px',
             fontWeight: '500',
             fontFamily: 'Roboto, Arial, sans-serif',
             userSelect: 'none',
             transition: 'all 0.2s ease',
             boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            zIndex: '9999' // Đảm bảo nổi lên trên
+            zIndex: '9999'
         });
 
-        const label = document.createElement('span');
-        label.textContent = '🎯 Hunter: ON';
+        // Tooltip (hiện khi hover - chuẩn UI/UX)
+        btnContainer.title = 'Extension: YouTube Ad Hunter';
+
+        const label = document.createElement('div');
+        label.style.display = 'flex';
+        label.style.flexDirection = 'column';
+        label.style.alignItems = 'center';
+        label.style.lineHeight = '1.2';
+
+        const mainText = document.createElement('span');
+        mainText.textContent = '🎯 Hunter: ON';
+        mainText.style.fontSize = '14px';
+
+        const subText = document.createElement('span');
+        subText.textContent = 'by Ad Hunter';
+        subText.style.fontSize = '10px';
+        subText.style.opacity = '0.9';
+        subText.style.fontWeight = '400';
+
+        label.appendChild(mainText);
+        label.appendChild(subText);
         btnContainer.appendChild(label);
 
         // Hover effect
@@ -157,7 +177,7 @@
 
         btnContainer.onclick = () => {
             isHunterActive = !isHunterActive;
-            label.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
+            mainText.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
             btnContainer.style.backgroundColor = isHunterActive ? '#cc0000' : '#444';
             btnContainer.style.color = isHunterActive ? 'white' : '#aaa';
             console.log(`[Hunter] ${isHunterActive ? 'Activated' : 'Deactivated'}`);
