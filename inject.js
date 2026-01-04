@@ -39,7 +39,7 @@
                     console.log('%c[Decoy] 🔄 Quay về: ' + e.data.targetId, 'color: cyan');
                     player.loadVideoById(e.data.targetId);
                     window.postMessage({ type: 'HUNTER_DECOY_DONE' }, '*');
-                }, 150);
+                }, 600);
             } else {
                 console.log('%c[Decoy] ❌ Player không có loadVideoById!', 'color: red');
             }
