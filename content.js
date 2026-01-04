@@ -94,37 +94,30 @@
 
     // ==========================================
     // TẦNG 1: DECOY TRICK (ƯU TIÊN CAO NHẤT)
-    // Dùng script injection để access YouTube Player API
+    // Dùng URL click để bypass CSP
     // ==========================================
     const executeDecoyTrick = (targetId, playlistId, playlistIndex) => {
-        console.log(`%c[Hunter] 🚨 DECOY TRICK: Kích hoạt...`, 'color: red; font-weight: bold;');
+        console.log(`%c[Decoy] 🚨 Kích hoạt! Nhảy sang Shorts...`, 'color: red; font-weight: bold;');
 
-        // Inject script vào page context để access YouTube API
-        const script = document.createElement('script');
-        script.textContent = `
-            (function() {
-                const player = document.getElementById('movie_player');
-                if (player && player.loadVideoById) {
-                    player.loadVideoById('${DECOY_ID}');
-                    setTimeout(function() {
-                        ${playlistId ? `
-                        player.loadPlaylist({
-                            list: '${playlistId}',
-                            listType: 'playlist',
-                            index: ${playlistIndex || 0}
-                        });
-                        ` : `
-                        player.loadVideoById('${targetId}');
-                        `}
-                    }, 150);
-                }
-            })();
-        `;
-        document.head.appendChild(script);
-        script.remove();
+        // Tạo link ảo và click để navigate
+        const decoyLink = document.createElement('a');
+        decoyLink.href = '/shorts/' + DECOY_ID;
+        decoyLink.click();
 
-        console.log(`%c[Hunter] 🔄 Decoy xong. Bàn giao cho LOGIC 2...`, 'color: cyan');
-        decoyTriggered = true;
+        // Quay về video chính sau 150ms
+        setTimeout(() => {
+            console.log(`%c[Decoy] 🔄 Quay về video: ${targetId}`, 'color: cyan');
+            const returnLink = document.createElement('a');
+            if (playlistId) {
+                returnLink.href = `/watch?v=${targetId}&list=${playlistId}&index=${playlistIndex || 0}`;
+            } else {
+                returnLink.href = `/watch?v=${targetId}`;
+            }
+            returnLink.click();
+
+            console.log(`%c[Decoy] 📤 Bàn giao cho Logic 2...`, 'color: orange');
+            decoyTriggered = true;
+        }, 150);
     };
 
     // Hàm check và kích hoạt Decoy (chỉ gọi 1 lần khi video load xong)
@@ -170,17 +163,32 @@
     const killActiveAd = (video) => {
         if (!video) return;
 
-        // Chỉ log 1 lần mỗi ads
+        // Log tiếp quản 1 lần
         if (!logic2Logged) {
-            console.log(`%c[Logic 2] 🎯 Xử lý Ads: Skip + Mute + x16 + Seek`, 'color: #ff6b6b; font-weight: bold;');
+            console.log(`%c[Logic 2] 🎯 Tiếp quản xử lý Ads...`, 'color: #ff6b6b; font-weight: bold;');
             logic2Logged = true;
         }
 
-        clickSkipButtons();
-        video.muted = true;
-        if (video.playbackRate < 16) video.playbackRate = 16;
-        if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
+        // 1. Click Skip - log nếu thực sự click được
+        const skipped = clickSkipButtons();
+        if (skipped) console.log(`%c[Logic 2] ✓ Click SKIP`, 'color: lime');
+
+        // 2. Mute - chỉ log nếu chưa mute
+        if (!video.muted) {
+            video.muted = true;
+            console.log(`%c[Logic 2] ✓ MUTE`, 'color: #aaa');
+        }
+
+        // 3. Speed x16 - chỉ log nếu thực sự đổi
+        if (video.playbackRate < 16) {
+            video.playbackRate = 16;
+            console.log(`%c[Logic 2] ✓ Speed x16`, 'color: #ffd93d');
+        }
+
+        // 4. Seek - chỉ log nếu thực sự seek
+        if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.5) {
             video.currentTime = video.duration;
+            console.log(`%c[Logic 2] ✓ SEEK đến cuối`, 'color: cyan');
         }
     };
 
