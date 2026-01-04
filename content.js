@@ -95,6 +95,7 @@
     // ==========================================
     // TẦNG 1: DECOY TRICK (ƯU TIÊN CAO NHẤT)
     // Áp dụng khi chuyển video mới và phát hiện ads đầu video
+    // Logic: Check 1 lần duy nhất khi video load → Có ads thì Decoy → Xong
     // ==========================================
     const executeDecoyTrick = (player, targetId, playlistId, playlistIndex) => {
         console.log(`%c[Hunter] 🚨 DECOY TRICK: Phát hiện Ads! Kích hoạt...`, 'color: red; font-weight: bold;');
@@ -118,45 +119,44 @@
                 player.loadVideoById(targetId);
             }
 
-            decoyTriggered = true; // Đánh dấu đã thử Decoy
+            decoyTriggered = true; // Đánh dấu đã thử Decoy cho video này
         }, 150);
     };
 
-    const onNavigateStart = () => {
+    // Hàm check và kích hoạt Decoy (chỉ gọi 1 lần khi video load xong)
+    const checkAndTriggerDecoy = () => {
+        if (!isHunterActive || decoyTriggered) return;
+
+        const player = document.getElementById('movie_player');
+        const isAd = document.querySelector('.ad-showing, .ad-interrupting');
+
+        // Lấy thông tin video và playlist từ URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetId = urlParams.get('v');
+        const playlistId = urlParams.get('list');
+        const playlistIndex = parseInt(urlParams.get('index')) || 0;
+
+        if (isAd && player && targetId) {
+            // CÓ ADS -> Kích hoạt Decoy
+            executeDecoyTrick(player, targetId, playlistId, playlistIndex);
+        } else {
+            // KHÔNG ADS -> Đánh dấu đã check, không cần Decoy
+            decoyTriggered = true;
+            console.log('%c[Hunter] ✅ Video sạch, không cần Decoy.', 'color: green');
+        }
+    };
+
+    // Khi chuyển video (manual hoặc auto-next)
+    const onNavigateFinish = () => {
         if (!isHunterActive) return;
 
-        console.log('%c[Hunter] 🚀 Chuyển video mới... Bắt đầu quét Ads...', 'color: yellow');
+        console.log('%c[Hunter] 🚀 Video mới load xong. Check Ads...', 'color: yellow');
 
-        // Reset trạng thái
+        // Reset trạng thái cho video mới
         decoyTriggered = false;
-        if (decoyInterval) clearInterval(decoyInterval);
 
-        let attempts = 0;
-
-        // Quét Ads trong 3 giây đầu
-        decoyInterval = setInterval(() => {
-            attempts++;
-            const player = document.getElementById('movie_player');
-            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
-
-            // Lấy thông tin video và playlist từ URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const targetId = urlParams.get('v');
-            const playlistId = urlParams.get('list');
-            const playlistIndex = parseInt(urlParams.get('index')) || 0;
-
-            if (isAd && player && targetId && !decoyTriggered) {
-                // CÓ ADS -> Kích hoạt Decoy ngay
-                clearInterval(decoyInterval);
-                executeDecoyTrick(player, targetId, playlistId, playlistIndex);
-            }
-
-            // Timeout sau 60 lần (3 giây) -> Dừng quét, nhường cho Tier 2
-            if (attempts > 60) {
-                clearInterval(decoyInterval);
-                console.log('%c[Hunter] ✅ Decoy scan complete. Tier 2 đang xử lý nếu cần.', 'color: gray');
-            }
-        }, 50);
+        // Check 1 lần duy nhất
+        checkAndTriggerDecoy();
     };
 
     // ==========================================
@@ -274,8 +274,9 @@
     updateSelectorsFromGithub();
     updateAdHideCSS();
 
-    // TIER 1: Lắng nghe chuyển video
-    window.addEventListener('yt-navigate-start', onNavigateStart);
+    // TIER 1: Lắng nghe chuyển video (manual + auto-next)
+    window.addEventListener('yt-navigate-finish', onNavigateFinish); // Khi video load xong
+    window.addEventListener('yt-page-data-updated', onNavigateFinish); // Backup cho SPA
 
     // TIER 2: Loop liên tục (fallback + mid-roll)
     setInterval(runHunter, 50);
@@ -288,5 +289,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v4.0: 2-Tier System (Decoy + Fallback) 🛡️⚡');
+    console.log('[Hunter] v4.1: 2-Tier System (Decoy once + Fallback) 🛡️⚡');
 })();
