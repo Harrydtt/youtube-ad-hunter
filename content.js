@@ -132,7 +132,7 @@
         // Quét 60 lần x 50ms = 3 giây (như code gốc)
         scanInterval = setInterval(() => {
             attempts++;
-            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
+            const isAd = checkIfAdIsShowing();
             const urlParams = new URLSearchParams(window.location.search);
             const targetId = urlParams.get('v');
 
@@ -198,9 +198,19 @@
     };
 
     const checkIfAdIsShowing = () => {
+        // Check các class cơ bản
         const adElement = document.querySelector('.ad-showing, .ad-interrupting');
-        const skipBtn = document.querySelector('.ytp-ad-skip-button');
-        return !!(adElement || skipBtn);
+
+        // Check các selector từ JSON (nếu có)
+        const jsonSelectorMatch = adShowingSelectors.some(sel => document.querySelector(sel));
+
+        // Check nút skip (dấu hiệu chắc chắn có Ads)
+        const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
+
+        // Check overlay
+        const overlay = document.querySelector('.ytp-ad-player-overlay');
+
+        return !!(adElement || jsonSelectorMatch || skipBtn || overlay);
     };
 
     const clickSkipButtons = () => {
@@ -333,5 +343,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v5.0: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v5.1: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
