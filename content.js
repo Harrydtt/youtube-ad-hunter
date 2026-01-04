@@ -115,29 +115,41 @@
     };
 
     // Lắng nghe khi chuyển bài (yt-navigate-start)
+    let scanInterval = null;
+
     const onNavigateStart = () => {
         if (!isHunterActive) return;
 
-        console.log('%c[Hunter] 🚀 Chuyển bài...', 'color: yellow');
+        console.log('%c[Hunter] 🚀 Chuyển bài... Quét Ads 3s...', 'color: yellow');
 
         // Reset
         decoyTriggered = false;
         logic2Logged = false;
+        if (scanInterval) clearInterval(scanInterval);
 
-        // Check 1 lần sau 100ms (đợi page update)
-        setTimeout(() => {
+        let attempts = 0;
+
+        // Quét 60 lần x 50ms = 3 giây (như code gốc)
+        scanInterval = setInterval(() => {
+            attempts++;
             const isAd = document.querySelector('.ad-showing, .ad-interrupting');
             const urlParams = new URLSearchParams(window.location.search);
             const targetId = urlParams.get('v');
 
             if (isAd && targetId && !decoyTriggered) {
-                console.log(`%c[Hunter] 🔍 Phát hiện ADS!`, 'color: red; font-weight: bold;');
+                clearInterval(scanInterval);
+                console.log(`%c[Hunter] 🔍 Phát hiện ADS! (attempt ${attempts})`, 'color: red; font-weight: bold;');
                 executeDecoyTrick(targetId);
-            } else {
-                console.log('%c[Hunter] ✅ Sạch hoặc chờ Logic 2.', 'color: green');
-                decoyTriggered = true;
             }
-        }, 100);
+
+            if (attempts > 60) {
+                clearInterval(scanInterval);
+                if (!decoyTriggered) {
+                    console.log('%c[Hunter] ✅ Video sạch.', 'color: green');
+                    decoyTriggered = true;
+                }
+            }
+        }, 50);
     };
 
     // ==========================================
