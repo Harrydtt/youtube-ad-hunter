@@ -4,10 +4,13 @@
     const BUTTON_ID = 'youtube-hunter-btn';
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
+    const DECOY_ID = 'tPEE9ZwTmy0'; // Video Shorts làm mồi
 
     // --- BIẾN TOÀN CỤC ---
     let currentVideoElement = null;
-    let isAdProcessing = false; // Cờ đánh dấu đang xử lý ads
+    let isAdProcessing = false;
+    let decoyTriggered = false; // Đánh dấu đã dùng Decoy cho video này chưa
+    let decoyInterval = null;
 
     // --- SELECTORS MẶC ĐỊNH ---
     let SKIP_SELECTORS = [
@@ -23,7 +26,6 @@
         'ytd-in-feed-ad-layout-renderer', 'ytd-display-ad-renderer', '#player-ads',
         '.ytp-ad-overlay-container', '.ytp-ad-text-overlay', 'ytd-promoted-sparkles-web-renderer',
         'ytd-promoted-video-renderer', '#masthead-ad', 'ytd-companion-slot-renderer',
-        // Premium Promo & Shorts Ads (v3.1)
         '.yt-mealbar-promo-renderer', 'ytd-mealbar-promo-renderer',
         'ytd-reel-video-renderer .ytp-ad-overlay-container',
         '.ytd-merch-shelf-renderer', 'ytd-merch-shelf-renderer'
@@ -90,60 +92,116 @@
         container.insertBefore(btn, container.firstChild);
     };
 
-    // --- CORE LOGIC: XỬ LÝ 1 VIDEO ADS ---
+    // ==========================================
+    // TẦNG 1: DECOY TRICK (ƯU TIÊN CAO NHẤT)
+    // Áp dụng khi chuyển video mới và phát hiện ads đầu video
+    // ==========================================
+    const executeDecoyTrick = (player, targetId, playlistId, playlistIndex) => {
+        console.log(`%c[Hunter] 🚨 DECOY TRICK: Phát hiện Ads! Kích hoạt...`, 'color: red; font-weight: bold;');
+
+        // Nhảy sang Shorts (Decoy)
+        player.loadVideoById(DECOY_ID);
+
+        // Quay về sau 150ms - Giữ Playlist nếu có
+        setTimeout(() => {
+            console.log(`%c[Hunter] 🔄 Decoy xong. Quay về video: ${targetId}`, 'color: cyan');
+
+            if (playlistId && playlistIndex !== null) {
+                // Có Playlist -> Load với index để giữ nguyên playlist
+                player.loadPlaylist({
+                    list: playlistId,
+                    listType: 'playlist',
+                    index: playlistIndex
+                });
+            } else {
+                // Không có Playlist -> Load video đơn
+                player.loadVideoById(targetId);
+            }
+
+            decoyTriggered = true; // Đánh dấu đã thử Decoy
+        }, 150);
+    };
+
+    const onNavigateStart = () => {
+        if (!isHunterActive) return;
+
+        console.log('%c[Hunter] 🚀 Chuyển video mới... Bắt đầu quét Ads...', 'color: yellow');
+
+        // Reset trạng thái
+        decoyTriggered = false;
+        if (decoyInterval) clearInterval(decoyInterval);
+
+        let attempts = 0;
+
+        // Quét Ads trong 3 giây đầu
+        decoyInterval = setInterval(() => {
+            attempts++;
+            const player = document.getElementById('movie_player');
+            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
+
+            // Lấy thông tin video và playlist từ URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetId = urlParams.get('v');
+            const playlistId = urlParams.get('list');
+            const playlistIndex = parseInt(urlParams.get('index')) || 0;
+
+            if (isAd && player && targetId && !decoyTriggered) {
+                // CÓ ADS -> Kích hoạt Decoy ngay
+                clearInterval(decoyInterval);
+                executeDecoyTrick(player, targetId, playlistId, playlistIndex);
+            }
+
+            // Timeout sau 60 lần (3 giây) -> Dừng quét, nhường cho Tier 2
+            if (attempts > 60) {
+                clearInterval(decoyInterval);
+                console.log('%c[Hunter] ✅ Decoy scan complete. Tier 2 đang xử lý nếu cần.', 'color: gray');
+            }
+        }, 50);
+    };
+
+    // ==========================================
+    // TẦNG 2: SPEED + SEEK (FALLBACK)
+    // Áp dụng khi:
+    // 1. Decoy đã chạy nhưng ads vẫn còn (fail)
+    // 2. Mid-roll Ads (ads giữa video)
+    // ==========================================
     const killActiveAd = (video) => {
         if (!video) return;
 
-        // 1. Click Skip ngay lập tức (Ưu tiên số 1)
-        const skipped = clickSkipButtons();
+        // 1. Click Skip ngay lập tức
+        clickSkipButtons();
 
-        // 2. Luôn tắt tiếng ads (bất kể loại video nào)
+        // 2. Tắt tiếng ads
         video.muted = true;
 
-        // 3. Tăng tốc tối đa (16x) - luôn áp dụng
+        // 3. Tăng tốc x16
         if (video.playbackRate < 16) video.playbackRate = 16;
 
-        // 4. Tua đến cuối ngay lập tức (CHỈ khi duration hữu hạn - không phải Live)
-        // Luôn seek ngay không điều kiện để đạt tốc độ tối đa
+        // 4. Tua đến cuối (nếu duration hữu hạn)
         if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
             video.currentTime = video.duration;
         }
-        // Nếu duration = Infinity (Live stream ads):
-        // -> Đã mute + 16x speed ở trên, không tua
     };
 
-    // --- EVENT LISTENER: BẮT NGAY KHI LOAD METADATA ---
-    // Đây là chìa khóa để xử lý 2 Ads liên tục và Mid-roll
     const onMetadataLoaded = (e) => {
         if (!isHunterActive) return;
-        const video = e.target;
-
-        // Check ngay xem lúc video load lên thì có class quảng cáo không
         if (checkIfAdIsShowing()) {
-            killActiveAd(video);
+            killActiveAd(e.target);
         }
     };
 
-    // --- HÀM KIỂM TRA TRẠNG THÁI ADS ---
     const checkIfAdIsShowing = () => {
         const adElement = document.querySelector('.ad-showing, .ad-interrupting');
-        // Đôi khi class chưa kịp add, check thêm sự tồn tại của nút skip hoặc overlay
         const skipBtn = document.querySelector('.ytp-ad-skip-button');
         return !!(adElement || skipBtn);
     };
 
-    // --- HÀM CLICK NÚT SKIP ---
     const clickSkipButtons = () => {
-        let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
-                if (btn && btn.offsetParent !== null) { // Visible
-                    btn.click();
-                    clicked = true;
-                }
+                if (btn && btn.offsetParent !== null) btn.click();
             });
         });
-        return clicked;
     };
 
     const hideStaticAds = () => {
@@ -161,58 +219,37 @@
         });
     };
 
-    // --- VÒNG LẶP CHÍNH (QUÉT LIÊN TỤC 50ms) ---
+    // --- VÒNG LẶP CHÍNH (TIER 2: FALLBACK + MID-ROLL HANDLER) ---
     const runHunter = () => {
         createHeaderButton();
         if (!isHunterActive) return;
 
         const video = document.querySelector('video');
 
-        // 1. Quản lý Event Listener (Cho trường hợp chuyển video SPA)
+        // Quản lý Event Listeners
         if (video && video !== currentVideoElement) {
-            // Remove old listeners
             if (currentVideoElement) {
-                ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay', 'timeupdate'].forEach(evt => {
+                ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
                     currentVideoElement.removeEventListener(evt, onMetadataLoaded);
                 });
             }
             currentVideoElement = video;
-
-            // Add aggressive listeners to catch Ad 2 ASAP
-            // - loadedmetadata: Khi có thông tin duration
-            // - durationchange: Khi duration thay đổi (Ad 1 -> Ad 2)
-            // - play: Ngay khi video bắt đầu play
-            // - playing: Khi video đang chạy
-            // - canplay: Khi đủ buffer để play
-            // - timeupdate: Mỗi khi currentTime thay đổi (backup cuối cùng)
             ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
                 video.addEventListener(evt, onMetadataLoaded);
             });
-
-            // timeupdate chạy quá nhiều (mỗi 250ms), chỉ dùng cho lần đầu
-            const onFirstTimeUpdate = (e) => {
-                onMetadataLoaded(e);
-                video.removeEventListener('timeupdate', onFirstTimeUpdate);
-            };
-            video.addEventListener('timeupdate', onFirstTimeUpdate);
         }
 
         const isAd = checkIfAdIsShowing();
 
         if (isAd && video) {
-            // ĐANG CÓ ADS
             isAdProcessing = true;
             killActiveAd(video);
         } else {
-            // KHÔNG CÓ ADS
-            // Chỉ restore video chính khi chắc chắn vừa thoát khỏi trạng thái xử lý ads
             if (isAdProcessing && video) {
                 if (video.muted) video.muted = false;
                 if (video.playbackRate > 1) video.playbackRate = 1;
                 isAdProcessing = false;
             }
-
-            // Fix lỗi mất controls khi hết ads
             const controls = document.querySelector('.ytp-chrome-bottom');
             if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
         }
@@ -221,8 +258,7 @@
         skipSurveys();
     };
 
-    // --- MUTATION OBSERVER (HỖ TRỢ MID-ROLL) ---
-    // Giúp phát hiện khoảnh khắc class 'ad-showing' được add vào giữa video
+    // --- MUTATION OBSERVER (MID-ROLL SUPPORT) ---
     const observer = new MutationObserver((mutations) => {
         if (!isHunterActive) return;
         for (const mutation of mutations) {
@@ -238,7 +274,10 @@
     updateSelectorsFromGithub();
     updateAdHideCSS();
 
-    // Interval cực nhanh để bắt 2 ads liên tiếp
+    // TIER 1: Lắng nghe chuyển video
+    window.addEventListener('yt-navigate-start', onNavigateStart);
+
+    // TIER 2: Loop liên tục (fallback + mid-roll)
     setInterval(runHunter, 50);
 
     const waitForPlayer = setInterval(() => {
@@ -249,5 +288,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] Loaded v3.0: 1-Ad, 2-Ads, Mid-roll supported 🛡️');
+    console.log('[Hunter] v4.0: 2-Tier System (Decoy + Fallback) 🛡️⚡');
 })();
