@@ -11,6 +11,7 @@
     let isAdProcessing = false;
     let decoyTriggered = false;
     let logic2Logged = false; // Log Logic 2 1 lần mỗi ads
+    let isDecoyScanning = false; // Flag: Đang trong giai đoạn scan của Tier 1
 
     // --- SELECTORS MẶC ĐỊNH ---
     let SKIP_SELECTORS = [
@@ -128,6 +129,7 @@
         // Reset
         decoyTriggered = false;
         logic2Logged = false;
+        isDecoyScanning = true; // Bắt đầu scan -> Tier 2 sẽ tạm nhường
         if (scanInterval) clearInterval(scanInterval);
 
         let attempts = 0;
@@ -141,12 +143,14 @@
 
             if (isAd && targetId && !decoyTriggered) {
                 clearInterval(scanInterval);
+                isDecoyScanning = false; // Xong việc -> Tier 2 được phép vào nếu cần
                 console.log(`%c[Hunter] 🔍 Phát hiện ADS! (attempt ${attempts})`, 'color: red; font-weight: bold;');
                 executeDecoyTrick(targetId);
             }
 
             if (attempts > 60) {
                 clearInterval(scanInterval);
+                isDecoyScanning = false; // Timeout -> Tier 2 được phép vào
                 if (!decoyTriggered) {
                     console.log('%c[Hunter] ✅ Video sạch.', 'color: green');
                     decoyTriggered = true;
@@ -163,6 +167,12 @@
     // ==========================================
     const killActiveAd = (video) => {
         if (!video) return;
+
+        // PRIORITY CHECK: Nếu đang scan Decoy -> Chỉ Mute, đừng log hay seek vội
+        if (isDecoyScanning) {
+            if (!video.muted) video.muted = true; // Silent mode
+            return; // Nhường sân khấu cho Decoy
+        }
 
         // Log tiếp quản 1 lần
         if (!logic2Logged) {
@@ -346,5 +356,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v5.2: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v6.0: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
