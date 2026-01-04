@@ -297,6 +297,12 @@
     // TIER 1: Lắng nghe chuyển video (yt-navigate-start)
     window.addEventListener('yt-navigate-start', onNavigateStart);
 
+    // Trigger scan ngay khi page load lần đầu
+    setTimeout(() => {
+        console.log('%c[Hunter] 🏠 Page load - Check Ads lần đầu...', 'color: yellow');
+        onNavigateStart();
+    }, 500);
+
     // TIER 2: Loop liên tục (fallback + mid-roll)
     setInterval(runHunter, 50);
 
