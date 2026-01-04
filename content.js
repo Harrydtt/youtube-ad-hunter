@@ -105,21 +105,21 @@
 
         // Quay về sau 150ms - Giữ Playlist nếu có
         setTimeout(() => {
-            console.log(`%c[Hunter] 🔄 Decoy xong. Quay về video: ${targetId}`, 'color: cyan');
+            console.log(`%c[Hunter] 🔄 Decoy xong (150ms). Quay về video: ${targetId}`, 'color: cyan');
+            console.log(`%c[Hunter] 📤 Bàn giao cho LOGIC 2 xử lý...`, 'color: orange; font-weight: bold;');
 
             if (playlistId && playlistIndex !== null) {
-                // Có Playlist -> Load với index để giữ nguyên playlist
+                console.log(`%c[Hunter] 📋 Playlist detected: ${playlistId}, index: ${playlistIndex}`, 'color: gray');
                 player.loadPlaylist({
                     list: playlistId,
                     listType: 'playlist',
                     index: playlistIndex
                 });
             } else {
-                // Không có Playlist -> Load video đơn
                 player.loadVideoById(targetId);
             }
 
-            decoyTriggered = true; // Đánh dấu đã thử Decoy cho video này
+            decoyTriggered = true;
         }, 150);
     };
 
@@ -136,13 +136,14 @@
         const playlistId = urlParams.get('list');
         const playlistIndex = parseInt(urlParams.get('index')) || 0;
 
+        console.log(`%c[Hunter] 🔍 Check Ads: ${isAd ? 'CÓ ADS!' : 'Không có ads'}`, isAd ? 'color: red' : 'color: green');
+
         if (isAd && player && targetId) {
-            // CÓ ADS -> Kích hoạt Decoy
+            console.log(`%c[Hunter] ⚡ Kích hoạt DECOY TRICK...`, 'color: orange; font-weight: bold;');
             executeDecoyTrick(player, targetId, playlistId, playlistIndex);
         } else {
-            // KHÔNG ADS -> Đánh dấu đã check, không cần Decoy
             decoyTriggered = true;
-            console.log('%c[Hunter] ✅ Video sạch, không cần Decoy.', 'color: green');
+            console.log('%c[Hunter] ✅ Video sạch, Decoy không cần. Logic 2 standby.', 'color: green');
         }
     };
 
@@ -168,18 +169,26 @@
     const killActiveAd = (video) => {
         if (!video) return;
 
+        console.log(`%c[Logic 2] 🎯 Phát hiện Ads! Đang xử lý...`, 'color: #ff6b6b; font-weight: bold;');
+
         // 1. Click Skip ngay lập tức
-        clickSkipButtons();
+        const skipped = clickSkipButtons();
+        if (skipped) console.log(`%c[Logic 2] ✓ Đã click nút SKIP`, 'color: lime');
 
         // 2. Tắt tiếng ads
         video.muted = true;
+        console.log(`%c[Logic 2] ✓ Đã MUTE`, 'color: #aaa');
 
         // 3. Tăng tốc x16
-        if (video.playbackRate < 16) video.playbackRate = 16;
+        if (video.playbackRate < 16) {
+            video.playbackRate = 16;
+            console.log(`%c[Logic 2] ✓ Speed x16`, 'color: #ffd93d');
+        }
 
         // 4. Tua đến cuối (nếu duration hữu hạn)
         if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
             video.currentTime = video.duration;
+            console.log(`%c[Logic 2] ✓ SEEK đến cuối (${video.duration.toFixed(1)}s)`, 'color: cyan');
         }
     };
 
@@ -197,11 +206,16 @@
     };
 
     const clickSkipButtons = () => {
+        let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
-                if (btn && btn.offsetParent !== null) btn.click();
+                if (btn && btn.offsetParent !== null) {
+                    btn.click();
+                    clicked = true;
+                }
             });
         });
+        return clicked;
     };
 
     const hideStaticAds = () => {
