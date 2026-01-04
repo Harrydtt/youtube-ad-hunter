@@ -33,6 +33,8 @@
 
     let SURVEY_SELECTORS = ['.ytp-ad-survey', '.ytp-ad-feedback-dialog-renderer', 'tp-yt-paper-dialog', '.ytd-popup-container', 'ytd-enforcement-message-view-model'];
 
+    let adShowingSelectors = ['.ad-showing', '.ad-interrupting'];
+
     // --- HÀM CẬP NHẬT SELECTORS ---
     const updateSelectorsFromGithub = async () => {
         try {
@@ -56,6 +58,7 @@
         if (data.skipSelectors) SKIP_SELECTORS = data.skipSelectors;
         if (data.adHideSelectors) AD_HIDE_SELECTORS = data.adHideSelectors;
         if (data.surveySelectors) SURVEY_SELECTORS = data.surveySelectors;
+        if (data.adShowingSelectors) adShowingSelectors = data.adShowingSelectors;
         updateAdHideCSS();
     };
 
@@ -343,5 +346,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v5.1: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v5.2: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
