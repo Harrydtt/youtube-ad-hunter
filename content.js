@@ -294,12 +294,14 @@
         }
     });
 
-    // TIER 1: Lắng nghe chuyển video (yt-navigate-start)
+    // TIER 1: Lắng nghe chuyển video (NHIỀU events để bắt đúng)
     window.addEventListener('yt-navigate-start', onNavigateStart);
+    window.addEventListener('yt-navigate-finish', onNavigateStart);
+    window.addEventListener('yt-page-data-updated', onNavigateStart);
 
     // Trigger scan ngay khi page load lần đầu
     setTimeout(() => {
-        console.log('%c[Hunter] 🏠 Page load - Check Ads lần đầu...', 'color: yellow');
+        console.log('%c[Hunter] 🏠 Page load...', 'color: yellow');
         onNavigateStart();
     }, 500);
 
@@ -314,5 +316,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v4.7: Decoy + 3s Scan + Fallback 🛡️⚡');
+    console.log('[Hunter] v4.8: Decoy + 3s Scan + Fallback 🛡️⚡');
 })();
