@@ -314,5 +314,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v4.6: Decoy + 3s Scan + Fallback 🛡️⚡');
+    console.log('[Hunter] v4.7: Decoy + 3s Scan + Fallback 🛡️⚡');
 })();
