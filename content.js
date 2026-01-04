@@ -116,6 +116,14 @@
         console.log(`%c[Decoy] 🚨 Kích hoạt!`, 'color: red; font-weight: bold;');
         window.postMessage({ type: 'HUNTER_DECOY', decoyId: DECOY_ID, targetId: targetId }, '*');
         decoyTriggered = true;
+
+        // Failsafe: Nếu sau 3s mà không thấy phản hồi (Decoy die) thì mở khóa cho Tier 2 xử lý
+        setTimeout(() => {
+            if (isDecoyScanning) {
+                console.log('%c[Decoy] ⚠️ Timeout chờ phản hồi -> Mở khóa cho Logic 2', 'color: orange');
+                isDecoyScanning = false;
+            }
+        }, 3000);
     };
 
     // Lắng nghe khi chuyển bài (yt-navigate-start)
@@ -143,7 +151,7 @@
 
             if (isAd && targetId && !decoyTriggered) {
                 clearInterval(scanInterval);
-                isDecoyScanning = false; // Xong việc -> Tier 2 được phép vào nếu cần
+                // isDecoyScanning vẫn TRUE để chặn Tier 2 xen vào lúc đang Decoy
                 console.log(`%c[Hunter] 🔍 Phát hiện ADS! (attempt ${attempts})`, 'color: red; font-weight: bold;');
                 executeDecoyTrick(targetId);
             }
@@ -327,6 +335,7 @@
     window.addEventListener('message', (e) => {
         if (e.data.type === 'HUNTER_DECOY_DONE') {
             console.log('%c[Decoy] 🔄 Quay về xong!', 'color: cyan');
+            isDecoyScanning = false; // Decoy xong -> Thả Logic 2 ra để check sót lại
         }
         // Từ inject.js -> History API pushState/replaceState
         if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
@@ -356,5 +365,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v6.0: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v6.1: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
