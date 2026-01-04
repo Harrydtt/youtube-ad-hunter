@@ -94,64 +94,50 @@
 
     // ==========================================
     // TẦNG 1: DECOY TRICK (ƯU TIÊN CAO NHẤT)
-    // Dùng URL click để bypass CSP
+    // Dùng inject.js để access YouTube Player API
     // ==========================================
-    const executeDecoyTrick = (targetId, playlistId, playlistIndex) => {
-        console.log(`%c[Decoy] 🚨 Kích hoạt! Nhảy sang Shorts...`, 'color: red; font-weight: bold;');
+    let injectReady = false;
 
-        // Tạo link ảo và click để navigate
-        const decoyLink = document.createElement('a');
-        decoyLink.href = '/shorts/' + DECOY_ID;
-        decoyLink.click();
-
-        // Quay về video chính sau 150ms
-        setTimeout(() => {
-            console.log(`%c[Decoy] 🔄 Quay về video: ${targetId}`, 'color: cyan');
-            const returnLink = document.createElement('a');
-            if (playlistId) {
-                returnLink.href = `/watch?v=${targetId}&list=${playlistId}&index=${playlistIndex || 0}`;
-            } else {
-                returnLink.href = `/watch?v=${targetId}`;
-            }
-            returnLink.click();
-
-            console.log(`%c[Decoy] 📤 Bàn giao cho Logic 2...`, 'color: orange');
-            decoyTriggered = true;
-        }, 150);
+    // Inject script vào page context
+    const injectScript = () => {
+        if (document.getElementById('hunter-inject')) return;
+        const script = document.createElement('script');
+        script.id = 'hunter-inject';
+        script.src = chrome.runtime.getURL('inject.js');
+        document.head.appendChild(script);
+        script.onload = () => { injectReady = true; };
     };
 
-    // Hàm check và kích hoạt Decoy (chỉ gọi 1 lần khi video load xong)
-    const checkAndTriggerDecoy = () => {
-        if (!isHunterActive || decoyTriggered) return;
-
-        const player = document.getElementById('movie_player');
-        const isAd = document.querySelector('.ad-showing, .ad-interrupting');
-
-        // Lấy thông tin video và playlist từ URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const targetId = urlParams.get('v');
-        const playlistId = urlParams.get('list');
-        const playlistIndex = parseInt(urlParams.get('index')) || 0;
-
-        console.log(`%c[Hunter] 🔍 Check Ads: ${isAd ? 'CÓ ADS!' : 'Sạch'}`, isAd ? 'color: red' : 'color: green');
-
-        if (isAd && targetId) {
-            console.log(`%c[Hunter] ⚡ Kích hoạt DECOY...`, 'color: orange; font-weight: bold;');
-            executeDecoyTrick(targetId, playlistId, playlistIndex);
-        } else {
-            decoyTriggered = true;
-        }
+    const executeDecoyTrick = (targetId) => {
+        console.log(`%c[Decoy] 🚨 Kích hoạt!`, 'color: red; font-weight: bold;');
+        window.postMessage({ type: 'HUNTER_DECOY', decoyId: DECOY_ID, targetId: targetId }, '*');
+        decoyTriggered = true;
     };
 
-    const onNavigateFinish = () => {
+    // Lắng nghe khi chuyển bài (yt-navigate-start)
+    const onNavigateStart = () => {
         if (!isHunterActive) return;
 
-        console.log('%c[Hunter] 🚀 Chuyển video mới...', 'color: yellow');
+        console.log('%c[Hunter] 🚀 Chuyển bài...', 'color: yellow');
 
+        // Reset
         decoyTriggered = false;
-        logic2Logged = false; // Reset log flag
+        logic2Logged = false;
 
-        checkAndTriggerDecoy();
+        // Check 1 lần sau 100ms (đợi page update)
+        setTimeout(() => {
+            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetId = urlParams.get('v');
+
+            if (isAd && targetId && !decoyTriggered) {
+                console.log(`%c[Hunter] 🔍 Phát hiện ADS!`, 'color: red; font-weight: bold;');
+                executeDecoyTrick(targetId);
+            } else {
+                console.log('%c[Hunter] ✅ Sạch hoặc chờ Logic 2.', 'color: green');
+                decoyTriggered = true;
+            }
+        }, 100);
     };
 
     // ==========================================
@@ -287,10 +273,17 @@
     // --- KHỞI ĐỘNG ---
     updateSelectorsFromGithub();
     updateAdHideCSS();
+    injectScript(); // Inject script để access YouTube API
 
-    // TIER 1: Lắng nghe chuyển video (manual + auto-next)
-    window.addEventListener('yt-navigate-finish', onNavigateFinish); // Khi video load xong
-    window.addEventListener('yt-page-data-updated', onNavigateFinish); // Backup cho SPA
+    // Lắng nghe message từ inject.js
+    window.addEventListener('message', (e) => {
+        if (e.data.type === 'HUNTER_DECOY_DONE') {
+            console.log('%c[Decoy] 🔄 Quay về xong!', 'color: cyan');
+        }
+    });
+
+    // TIER 1: Lắng nghe chuyển video (yt-navigate-start)
+    window.addEventListener('yt-navigate-start', onNavigateStart);
 
     // TIER 2: Loop liên tục (fallback + mid-roll)
     setInterval(runHunter, 50);
@@ -303,5 +296,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v4.1: 2-Tier System (Decoy once + Fallback) 🛡️⚡');
+    console.log('[Hunter] v4.5: Decoy via inject.js + Fallback 🛡️⚡');
 })();
