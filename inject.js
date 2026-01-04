@@ -37,7 +37,7 @@
 
                 setTimeout(function () {
                     console.log('%c[Decoy] 🔄 Quay về: ' + e.data.targetId, 'color: cyan');
-                    player.loadVideoById(e.data.targetId);
+                    player.loadVideoById({ 'videoId': e.data.targetId, 'startSeconds': 0 });
                     window.postMessage({ type: 'HUNTER_DECOY_DONE' }, '*');
                 }, 600);
             } else {

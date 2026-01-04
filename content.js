@@ -369,5 +369,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v6.3: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v6.4: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
