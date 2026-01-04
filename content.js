@@ -287,23 +287,40 @@
     updateAdHideCSS();
     injectScript(); // Inject script để access YouTube API
 
-    // Lắng nghe message từ inject.js
+    // Lắng nghe message từ inject.js (History API hook & Decoy)
+    let lastVideoId = null;
+
+    const checkAndTriggerNavigate = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentVideoId = urlParams.get('v');
+
+        if (currentVideoId && currentVideoId !== lastVideoId) {
+            console.log(`%c[Hunter] ⚡ Đã bắt được user chuyển bài: ${lastVideoId} → ${currentVideoId}`, 'color: green; font-weight: bold; font-size: 14px;');
+            lastVideoId = currentVideoId;
+            onNavigateStart();
+        }
+    };
+
     window.addEventListener('message', (e) => {
         if (e.data.type === 'HUNTER_DECOY_DONE') {
             console.log('%c[Decoy] 🔄 Quay về xong!', 'color: cyan');
         }
+        // Từ inject.js -> History API pushState/replaceState
+        if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
+            checkAndTriggerNavigate();
+        }
     });
 
-    // TIER 1: Lắng nghe chuyển video (NHIỀU events để bắt đúng)
-    window.addEventListener('yt-navigate-start', onNavigateStart);
-    window.addEventListener('yt-navigate-finish', onNavigateStart);
-    window.addEventListener('yt-page-data-updated', onNavigateStart);
-
-    // Trigger scan ngay khi page load lần đầu
+    // Check ngay lần đầu load
     setTimeout(() => {
-        console.log('%c[Hunter] 🏠 Page load...', 'color: yellow');
-        onNavigateStart();
+        checkAndTriggerNavigate();
     }, 500);
+
+    // DỰ PHÒNG: Vẫn giữ lắng nghe event gốc phòng khi History API miss (hiếm)
+    window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
+
+    // TIER 2: Loop liên tục (fallback + mid-roll)
+    setInterval(runHunter, 50);
 
     // TIER 2: Loop liên tục (fallback + mid-roll)
     setInterval(runHunter, 50);
@@ -316,5 +333,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v4.8: Decoy + 3s Scan + Fallback 🛡️⚡');
+    console.log('[Hunter] v5.0: URL Poll + Decoy + Fallback 🛡️⚡');
 })();

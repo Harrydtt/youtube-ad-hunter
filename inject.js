@@ -2,6 +2,27 @@
 (function () {
     console.log('[Hunter] Inject script starting...');
 
+    // --- MONKEY PATCH HISTORY API (Để detect chuyển bài ngay lập tức) ---
+    // YouTube là SPA, nó dùng pushState để đổi URL mà không reload.
+    // Hook vào đây để bắt sự kiện NHANH HƠN cả yt-navigate-start.
+    const originalPushState = history.pushState;
+    history.pushState = function () {
+        originalPushState.apply(this, arguments);
+        // Gửi message báo content.js biết là có chuyển trang
+        window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
+    };
+
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function () {
+        originalReplaceState.apply(this, arguments);
+        window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
+    };
+
+    window.addEventListener('popstate', () => {
+        window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
+    });
+
+
     window.addEventListener('message', function (e) {
         console.log('[Hunter] Inject received message:', e.data);
 
