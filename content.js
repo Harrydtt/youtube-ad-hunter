@@ -334,8 +334,12 @@
 
     window.addEventListener('message', (e) => {
         if (e.data.type === 'HUNTER_DECOY_DONE') {
-            console.log('%c[Decoy] 🔄 Quay về xong!', 'color: cyan');
-            isDecoyScanning = false; // Decoy xong -> Thả Logic 2 ra để check sót lại
+            console.log('%c[Decoy] 🔄 Quay về xong! ⏳ Chờ 2s để player ổn định...', 'color: cyan');
+            // Grace Period: Chờ 2s sau khi về video chính mới thả Logic 2 ra.
+            // Để tránh việc player chưa load xong UI, vẫn còn class .ad-showing làm Logic 2 quét nhầm.
+            setTimeout(() => {
+                isDecoyScanning = false;
+            }, 2000);
         }
         // Từ inject.js -> History API pushState/replaceState
         if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
@@ -365,5 +369,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v6.1: URL Poll + Decoy + Fallback 🛡️⚡');
+    console.log('[Hunter] v6.2: URL Poll + Decoy + Fallback 🛡️⚡');
 })();
