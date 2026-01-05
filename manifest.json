@@ -28,6 +28,16 @@
         "*://*.youtube.com/*"
       ],
       "js": [
+        "inject.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
         "content.js"
       ],
       "run_at": "document_start"
