@@ -1,6 +1,6 @@
-// inject.js - v27: The Bouncer (Client-Side Muzzle)
+// inject.js - v28: The Consistency Fix (Resurrected De-Monetization)
 (function () {
-    console.log('[Hunter] Stealth Engine v27: The Bouncer 🛡️');
+    console.log('[Hunter] Stealth Engine v28: Consistency Fix 🧩');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
@@ -13,7 +13,8 @@
             'playerErrorMessageRenderer',
             'mealbarPromoRenderer',
             'actionCompanionAdRenderer',
-            'statementBannerRenderer'
+            'statementBannerRenderer',
+            'youTubePaymentPromoRenderer' // Thêm cái này cho chắc
         ]
     };
     let jsonCutEnabled = true;
@@ -35,8 +36,7 @@
         }
     });
 
-    // --- 2. CSS MUZZLE (Fastest Layer) ---
-    // Tiêm CSS để ẩn ngay lập tức các thành phần này trước khi JS kịp chạy
+    // --- 2. CSS MUZZLE (The Bouncer) ---
     const style = document.createElement('style');
     style.id = 'hunter-muzzle-css';
     style.textContent = `
@@ -60,19 +60,13 @@
     (document.head || document.documentElement).appendChild(style);
 
     // --- 3. DOM BOUNCER (MutationObserver) ---
-    // Canh gác DOM, thấy thằng nào ngoi lên là đấm
     const observer = new MutationObserver((mutations) => {
         if (!jsonCutEnabled) return;
-
         for (constmutation of mutations) {
             for (const node of mutation.addedNodes) {
-                if (node.nodeType !== 1) continue; // Chỉ check Element node
-
+                if (node.nodeType !== 1) continue;
                 const tag = node.tagName.toLowerCase();
                 const id = node.id;
-                const className = node.className;
-
-                // Check các thẻ nguy hiểm
                 if (tag === 'ytd-enforcement-message-view-model' ||
                     tag === 'ytd-mealbar-promo-renderer' ||
                     id === 'mealbar-promo-renderer' ||
@@ -80,34 +74,25 @@
                 ) {
                     node.remove();
                     console.log(`%c[Bouncer] 🥊 Kicked out: ${tag}#${id}`, 'color: red; font-weight: bold;');
-
-                    // Nếu là Popup chặn xem, ta cần bấm Play lại cho video
                     const video = document.querySelector('video');
-                    if (video && video.paused) {
-                        video.play();
-                        console.log('[Bouncer] ▶️ Resuming video...');
-                    }
+                    if (video && video.paused) { showVideo(); video.play(); }
                 }
             }
         }
     });
-
     observer.observe(document.documentElement, { childList: true, subtree: true });
-
 
     // --- 4. BEACON SYSTEM ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
     };
-
     const fireBeacon = (url) => {
         if (!url || !url.startsWith('http')) return;
         const img = new Image();
         img.style.display = 'none';
         img.src = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
     };
-
     const fakeAdViewing = (adData) => {
         if (!adData) return;
         try {
@@ -127,7 +112,6 @@
                 }
                 return urls;
             };
-
             const urls = findUrls(adData);
             if (urls.length > 0) {
                 sendToOffscreen(urls);
@@ -136,55 +120,98 @@
         } catch (e) { }
     };
 
-    // --- 5. CORE LOGIC: NUCLEAR WIPE (Server-Side) ---
+    // --- 5. CORE LOGIC: NUKE & STRIP & DEMONETIZE ---
     const nukeAds = (data) => {
-        if (data.adPlacements?.length > 0) { fakeAdViewing(data.adPlacements); data.adPlacements = []; }
-        if (data.playerResponse?.adPlacements?.length > 0) { fakeAdViewing(data.playerResponse.adPlacements); data.playerResponse.adPlacements = []; }
+        if (data.adPlacements) { fakeAdViewing(data.adPlacements); data.adPlacements = []; }
         if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
-        if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
         if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
-        if (data.playerResponse?.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; }
+
+        if (data.playerResponse) {
+            if (data.playerResponse.adPlacements) { fakeAdViewing(data.playerResponse.adPlacements); data.playerResponse.adPlacements = []; }
+            if (data.playerResponse.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
+            if (data.playerResponse.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; }
+        }
+    };
+
+    // RESURRECTED LOGIC: De-Monetization
+    const deMonetize = (data) => {
+        // 1. Tắt cờ kiếm tiền
+        if (data.videoDetails) data.videoDetails.isMonetized = false;
+        if (data.playerResponse?.videoDetails) data.playerResponse.videoDetails.isMonetized = false;
+
+        // 2. Xóa nhịp tim Ads (Nguyên nhân chính gây lỗi playback error)
+        if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
+        if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
+
+        // 3. Xóa cấu hình DAI (Ads động)
+        if (data.playerConfig?.daiConfig) data.playerConfig.daiConfig = null;
+        if (data.playerResponse?.playerConfig?.daiConfig) data.playerResponse.playerConfig.daiConfig = null;
+
+        // 4. Xóa thông tin phát hiện Adblock (Nguyên nhân link support)
+        if (data.adBlockingInfo) delete data.adBlockingInfo;
+        if (data.playerResponse?.adBlockingInfo) delete data.playerResponse.adBlockingInfo;
+
+        if (data.playabilityStatus?.errorScreen?.playerErrorMessageRenderer?.reason?.simpleText?.includes('Ad blockers')) {
+            delete data.playabilityStatus.errorScreen;
+            data.playabilityStatus.status = 'OK';
+        }
     };
 
     const stripPopups = (data) => {
-        if (data.auxiliaryUi?.messageRenderers) {
+        const checkAndRemove = (obj) => {
+            if (!obj) return;
             for (let key of CONFIG.popup_keys) {
-                if (data.auxiliaryUi.messageRenderers[key]) delete data.auxiliaryUi.messageRenderers[key];
+                if (obj[key]) {
+                    delete obj[key];
+                    console.log(`%c[Hunter] 🚫 Blocked: ${key}`, 'color: red;');
+                }
             }
-        }
-        if (data.overlay?.upsellDialogRenderer) delete data.overlay.upsellDialogRenderer;
-        if (data.playerResponse?.auxiliaryUi?.messageRenderers?.mealbarPromoRenderer) delete data.playerResponse.auxiliaryUi.messageRenderers.mealbarPromoRenderer;
+        };
+
+        if (data.auxiliaryUi?.messageRenderers) checkAndRemove(data.auxiliaryUi.messageRenderers);
+        if (data.playerResponse?.auxiliaryUi?.messageRenderers) checkAndRemove(data.playerResponse.auxiliaryUi.messageRenderers);
+        if (data.overlay) checkAndRemove(data.overlay);
     };
 
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
         try {
-            nukeAds(data);
-            stripPopups(data);
-            if (data.playerResponse) stripPopups(data.playerResponse);
+            nukeAds(data);       // B1: Xóa Ads
+            deMonetize(data);    // B2: Xóa kiếm tiền (Fix Popup Soft Failure)
+            stripPopups(data);   // B3: Xóa Banner rác
         } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
 
     // --- 6. DATA TRAPS ---
     const ensurePlayability = (data) => {
-        if (data.playabilityStatus && data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
-            data.playabilityStatus.status = 'OK';
-            data.playabilityStatus.playableInEmbed = true;
+        if (data.playabilityStatus) {
+            if (data.playabilityStatus.status === 'LOGIN_REQUIRED') return;
+            if (data.playabilityStatus.status !== 'OK') {
+                data.playabilityStatus.status = 'OK';
+                data.playabilityStatus.playableInEmbed = true;
+                if (data.playabilityStatus.errorScreen) delete data.playabilityStatus.errorScreen;
+            }
         }
     };
 
     const trapVariable = (varName) => {
         let internalValue = window[varName];
-        Object.defineProperty(window, varName, {
-            get: function () { return internalValue; },
-            set: function (val) {
-                if (val && val.playabilityStatus) ensurePlayability(val);
-                internalValue = processYoutubeData(val);
-            },
-            configurable: true
-        });
+        try {
+            Object.defineProperty(window, varName, {
+                get: function () { return internalValue; },
+                set: function (val) {
+                    if (val) {
+                        val = processYoutubeData(val);
+                        if (val.playabilityStatus) ensurePlayability(val);
+                    }
+                    internalValue = val;
+                },
+                configurable: true
+            });
+        } catch (e) { }
     };
+
     try { trapVariable('ytInitialPlayerResponse'); trapVariable('ytInitialData'); } catch (e) { }
 
     // --- 7. HOOKS ---
@@ -206,7 +233,10 @@
         } catch (e) { return originalJson.call(this); }
     };
 
-    if (window.ytInitialPlayerResponse) { processYoutubeData(window.ytInitialPlayerResponse); ensurePlayability(window.ytInitialPlayerResponse); }
+    if (window.ytInitialPlayerResponse) {
+        processYoutubeData(window.ytInitialPlayerResponse);
+        ensurePlayability(window.ytInitialPlayerResponse);
+    }
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
