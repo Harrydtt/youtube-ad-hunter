@@ -353,5 +353,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v24: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v25: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
