@@ -1,131 +1,96 @@
-# 🎯 YouTube Ad Hunter v3.3
+# 🎯 YouTube Ad Hunter v11
 
-Extension Chrome giúp tự động skip quảng cáo trên YouTube - Phiên bản Aggressive Mode.
+Extension Chrome giúp chặn quảng cáo YouTube - Sử dụng kỹ thuật JSON Lobotomy + Pixel Beacon.
 
 ## ✨ Tính năng chính
 
-- **Auto-skip quảng cáo video** - Tua nhanh x16, nhảy đến cuối, click nút Skip
-- **Xử lý mọi loại ads** - 1 Ad, 2 Ads liên tiếp, Mid-roll (ads giữa video)
-- **Hỗ trợ Live Stream** - Mute + Speed x16 cho ads trên live/premiere
-- **Ẩn quảng cáo static** - Banner, sidebar, overlay, Premium Promo, Shorts ads
-- **Skip surveys** - Auto-đóng các popup khảo sát
-- **MutationObserver** - Phản ứng nhanh khi quảng cáo xuất hiện
-- **Auto-update selectors** - Tự động cập nhật từ GitHub mỗi 24h
-- **Toggle dễ dàng** - Nút ON/OFF ngay trên header YouTube
+### 🔪 Tier 1: JSON Lobotomy (Stealth)
+- **Chặn ads từ gốc** - Hook vào `JSON.parse` để cắt dữ liệu quảng cáo
+- **Pixel Beacon** - Fake lượt xem ads bằng `new Image()` (gửi kèm cookies)
+- **Neutering** - Gán mảng rỗng `[]` thay vì xóa để tránh crash Player
+- **Dynamic Config** - Tự cập nhật ad_keys từ GitHub mỗi 6 giờ
+
+### ⚡ Tier 2: Speed/Skip (Fallback)
+- **Tua x16 + Skip** - Xử lý khi Tier 1 miss
+- **Mid-roll handling** - MutationObserver phát hiện ads giữa video
+- **50ms interval** - Phản ứng cực nhanh
+
+### 🛡️ Tính năng phụ
+- **Ẩn quảng cáo static** - Banner, sidebar, overlay, Premium Promo
+- **Skip surveys** - Auto-đóng popup khảo sát
+- **Toggle Popup** - Bật/Tắt từng tính năng riêng biệt
 
 ---
 
-## � Changelog v3.3
+## 🚀 Cài đặt
 
-### Các trường hợp xử lý:
-
-| Trường hợp | Cách xử lý | Thời gian |
-|---|---|---|
-| **1 Ad thường** | Mute + Speed x16 + Tua cuối + Click Skip | ~0.1s |
-| **2 Ads liên tiếp** | Aggressive event listeners bắt Ad 2 ngay | ~1-2s chờ |
-| **Mid-roll** | MutationObserver phát hiện `.ad-showing` | Ngay lập tức |
-| **Bumper 6s** | `readyState` check trước khi tua | ~0.5s |
-| **Live Stream ads** | Mute + Speed x16 (không tua Infinity) | Ads/16 giây |
-| **Unskippable ads** | Speed x16 + Tua cuối | ~0.1s |
-
-### Selectors mới (v3.1+):
-- `.yt-mealbar-promo-renderer` - Ẩn thanh khuyến mãi Premium
-- `ytd-reel-video-renderer .ytp-ad-overlay-container` - Shorts ads
-- `ytd-merch-shelf-renderer` - Ẩn kệ bán merch
-
-### Cải tiến kỹ thuật:
-- **6 Event listeners** (`loadedmetadata`, `durationchange`, `play`, `playing`, `canplay`, `timeupdate`)
-- **50ms interval** (nhanh gấp 4 lần so với 200ms cũ)
-- **`isAdProcessing` flag** - Quản lý chính xác trạng thái ads
-- **`readyState` check** - Đảm bảo metadata loaded trước khi tua
+1. Download hoặc `git clone https://github.com/Harrydtt/youtube-ad-hunter.git`
+2. Mở Chrome → `chrome://extensions/`
+3. Bật **Developer mode** (góc phải trên)
+4. Click **Load unpacked** → Chọn thư mục đã tải
+5. Vào YouTube và xem thử!
 
 ---
-
-## � Cài đặt
-
-1. Mở Chrome, vào `chrome://extensions/`
-2. Bật **Developer mode** (góc trên bên phải)
-3. Click **Load unpacked**
-4. Chọn thư mục `Youtube_Extension`
-5. Vào YouTube và xem thử video!
 
 ## 🎮 Cách sử dụng
 
-Sau khi cài đặt, bạn sẽ thấy nút **🎯 Hunter: ON** màu đỏ trên header YouTube.
+Click icon extension trên toolbar để mở popup với 2 toggle:
 
-- **ON** (đỏ): Tự động skip quảng cáo
-- **OFF** (xám): Tắt, xem quảng cáo bình thường
+| Toggle | Chức năng |
+|--------|-----------|
+| **🔪 JSON Cut** | Chặn ads từ gốc dữ liệu JSON |
+| **⚡ Logic 2** | Fallback tua x16 + click Skip |
 
----
-
-## 🧠 Logic xử lý Ads
-
-```
-┌─────────────────────────────────────────────────────────┐
-│              Extension khởi động                        │
-└─────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-   │ Auto-update │ │ Inject CSS  │ │ Start       │
-   │ selectors   │ │ ẩn ads      │ │ Observer    │
-   └─────────────┘ └─────────────┘ └─────────────┘
-                          │
-                          ▼
-            ┌───────────────────────────┐
-            │ runHunter() chạy mỗi 50ms │
-            │ + 6 event listeners       │
-            │ + MutationObserver        │
-            └───────────────────────────┘
-                          │
-                          ▼
-            ┌───────────────────────────┐
-            │   Phát hiện .ad-showing?  │
-            └───────────────────────────┘
-                  │ Yes           │ No
-                  ▼               ▼
-          ┌─────────────┐   ┌─────────────┐
-          │ killActiveAd│   │ Restore     │
-          │ 1. Skip btn │   │ - muted=F   │
-          │ 2. Mute     │   │ - speed=1   │
-          │ 3. Speed x16│   │             │
-          │ 4. Tua cuối │   │             │
-          └─────────────┘   └─────────────┘
-```
-
-### Thứ tự xử lý trong `killActiveAd()`:
-
-| Bước | Action | Điều kiện |
-|------|--------|-----------|
-| 1 | Click Skip buttons | Luôn thử |
-| 2 | `video.muted = true` | Luôn áp dụng |
-| 3 | `video.playbackRate = 16` | Luôn áp dụng |
-| 4 | `video.currentTime = duration` | Chỉ khi duration hữu hạn |
+> **Tip:** Để test riêng từng logic, tắt cái còn lại trong popup.
 
 ---
 
-## 🔄 Auto-Update Selectors
+## 🧠 Cơ chế hoạt động
 
-Extension tự động cập nhật CSS selectors từ GitHub mỗi 24 giờ.
-
-**URL hiện tại:**
 ```
-https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json
+┌──────────────────────────────────────────────────────────┐
+│              YouTube gửi dữ liệu video                   │
+└──────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+              ┌─────────────────────────┐
+              │  inject.js: JSON.parse  │
+              │  HOOK dữ liệu           │
+              └─────────────────────────┘
+                            │
+          ┌─────────────────┴─────────────────┐
+          ▼                                   ▼
+   ┌─────────────┐                    ┌─────────────────┐
+   │ Có ads?     │── No ─────────────▶│ Return data gốc │
+   └─────────────┘                    └─────────────────┘
+          │ Yes
+          ▼
+   ┌──────────────────┐
+   │ 1. Clone ad data │
+   │ 2. Fake via Pixel│
+   │ 3. Neuter ads    │
+   └──────────────────┘
+          │
+          ▼
+   ┌───────────────────────────────────────────────────────┐
+   │  Nếu vẫn còn ads → Logic 2 (Speed x16 + Skip) xử lý  │
+   └───────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📊 So sánh với các giải pháp khác
+## 📋 Dynamic Config (GitHub)
 
-| Tính năng | Ad Hunter | uBlock Origin | AdBlock Plus |
-|-----------|:---------:|:-------------:|:------------:|
-| **Cơ chế** | DOM Skip | Network block | Filter lists |
-| **YouTube detection** | ✅ Khó | ⚠️ Có thể | ⚠️ Có thể |
-| **Manifest V3** | ✅ OK | ⚠️ Giới hạn | ⚠️ Giới hạn |
-| **RAM usage** | 🟢 Thấp | 🟡 TB | 🟢 Thấp |
-| **Auto-update selectors** | ✅ | ❌ | ❌ |
-| **Live Stream support** | ✅ | ✅ | ✅ |
+File `hunter_config.json` chứa các keys có thể update từ xa:
+
+```json
+{
+  "ad_keys": ["adPlacements", "playerAds", "adSlots", ...],
+  "tracking_keys": ["impressionEndpoints", "start", "complete", ...]
+}
+```
+
+> Khi YouTube đổi tên biến, chỉ cần update file này mà không cần update extension!
 
 ---
 
@@ -133,12 +98,28 @@ https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json
 
 ```
 Youtube_Extension/
-├── manifest.json     # Config extension (Manifest V3)
-├── content.js        # Code chính (~240 lines)
-├── selectors.json    # Selectors (hosted on GitHub)
-├── icons/            # Icons 16/48/128px
-└── README.md
+├── manifest.json        # Config extension (Manifest V3)
+├── content.js           # Logic 2 + UI
+├── inject.js            # JSON Lobotomy + Pixel Beacon
+├── popup.html/js        # Toggle controls
+├── hunter_config.json   # Dynamic ad keys
+├── selectors.json       # CSS selectors (auto-update)
+└── icons/               # Icons 16/48/128px
 ```
+
+---
+
+## 📊 So sánh
+
+| Tính năng | Ad Hunter v11 | uBlock Origin | AdBlock Plus |
+|-----------|:-------------:|:-------------:|:------------:|
+| **Cơ chế** | JSON Hook | Network block | Filter lists |
+| **Detection risk** | 🟢 Thấp | 🟡 TB | 🟡 TB |
+| **Manifest V3** | ✅ OK | ⚠️ Giới hạn | ⚠️ Giới hạn |
+| **Auto-update config** | ✅ | ❌ | ❌ |
+| **Fake impression** | ✅ | ❌ | ❌ |
+
+---
 
 ## 📄 License
 
