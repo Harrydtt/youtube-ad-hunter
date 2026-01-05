@@ -1,12 +1,13 @@
-// inject.js - v21: The Popup Killer (Anti-Popup + Data Traps)
+// inject.js - v22: The Diplomat (Smart Pruning + Anti-Popup)
 (function () {
-    console.log('[Hunter] Stealth Engine v21: The Popup Killer �️');
+    console.log('[Hunter] Stealth Engine v22: The Diplomat 🎩');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer'] // Đám Popup khó chịu
+        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer'],
+        preroll_indicators: ['PREROLL', '0', 0]
     };
     let jsonCutEnabled = true;
 
@@ -26,7 +27,7 @@
         }
     });
 
-    // --- 2. BEACON SYSTEM ---
+    // --- 2. BEACON SYSTEM (DIPLOMATIC CHANNEL) ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
@@ -63,52 +64,70 @@
             if (urls.length > 0) {
                 sendToOffscreen(urls);
                 urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 150));
+                console.log(`%c[Diplomat] 🤝 Negotiated ${urls.length} fake views`, 'color: #00ffff');
             }
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC ---
+    // --- 3. CORE LOGIC: GENTLE PRUNING ---
+    const processAdPlacements = (placements) => {
+        if (!Array.isArray(placements) || placements.length === 0) return placements;
 
-    // A. Xóa Popup (Anti-Adblock Dialog)
-    // Thay vì lừa Player video không kiếm tiền (bị lộ), ta tìm chính cái Popup đó và xóa nó đi.
+        // Vòng lặp Ngoại giao: Chỉ cắt Preroll (gây phiền nhất), giữ Midroll (để Logic 2 xử lý)
+        // Việc giữ lại Midroll giúp cấu trúc JSON trông "thật" hơn -> Tránh Detect
+        return placements.filter(p => {
+            const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
+            let isPreroll = false;
+
+            if (renderer?.adBreakType && CONFIG.preroll_indicators.includes(renderer.adBreakType)) isPreroll = true;
+            if (p.adPlacementRenderer?.config?.adPlacementConfig?.kind && CONFIG.preroll_indicators.includes(p.adPlacementRenderer.config.adPlacementConfig.kind)) isPreroll = true;
+
+            // Check thời gian
+            const timeOffset = p.adPlacementRenderer?.timeOffsetMilliseconds;
+            if (CONFIG.preroll_indicators.includes(timeOffset)) isPreroll = true;
+
+            if (isPreroll) {
+                console.log('%c[Hunter] � Preroll removed silently', 'color: gray');
+                fakeAdViewing(p); // Nộp thuế trước khi cắt
+                return false;
+            }
+
+            // Midroll giữ lại -> Không xóa -> Integrity Check OK
+            return true;
+        });
+    };
+
     const stripPopups = (data) => {
-        if (data.auxiliaryUi && data.auxiliaryUi.messageRenderers) {
-            const renderers = data.auxiliaryUi.messageRenderers;
+        if (data.auxiliaryUi?.messageRenderers) {
             for (let key of CONFIG.popup_keys) {
-                if (renderers[key]) {
-                    delete renderers[key];
-                    console.log(`%c[Hunter] 🚫 Removed Popup: ${key}`, 'color: red; font-weight: bold;');
+                if (data.auxiliaryUi.messageRenderers[key]) {
+                    delete data.auxiliaryUi.messageRenderers[key];
                 }
             }
         }
-        // Xóa Upsell trong overlay
-        if (data.overlay && data.overlay.upsellDialogRenderer) {
-            delete data.overlay.upsellDialogRenderer;
-        }
+        if (data.overlay?.upsellDialogRenderer) delete data.overlay.upsellDialogRenderer;
     };
 
-    // B. Xử lý Dữ liệu
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
 
         try {
-            // 1. Fake View
-            const adClone = {};
-            if (data.adPlacements) adClone.adPlacements = data.adPlacements;
-            if (data.playerResponse?.adPlacements) adClone.nestedAds = data.playerResponse.adPlacements;
-            if (data.playerAds) adClone.playerAds = data.playerAds;
-            if (Object.keys(adClone).length > 0) fakeAdViewing(adClone);
+            // 1. Ngoại giao (Fake View) cho toàn bộ
+            // (Code cũ copy adClone ở đây, nhưng giờ ta làm trong processAdPlacements cho chính xác từng item)
 
-            // 2. Xóa sạch Ads (Không De-Monetize nữa, chỉ xóa Ads)
-            if (data.adPlacements) data.adPlacements = [];
-            if (data.playerAds) data.playerAds = [];
-            if (data.adSlots) data.adSlots = [];
-            if (data.playerResponse) {
-                if (data.playerResponse.adPlacements) data.playerResponse.adPlacements = [];
-                if (data.playerResponse.playerAds) data.playerResponse.playerAds = [];
+            // 2. Xử lý Mảng AdPlacements (Chiến thuật v17)
+            if (data.adPlacements) {
+                data.adPlacements = processAdPlacements(data.adPlacements);
+            }
+            if (data.playerResponse?.adPlacements) {
+                data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
             }
 
-            // 3. Xóa Popup thực thi
+            // 3. Xử lý AdSlots / PlayerAds (Những cái râu ria xóa hết cũng được)
+            if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
+            if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
+
+            // 4. Diệt Popup (Lưới an toàn)
             stripPopups(data);
             if (data.playerResponse) stripPopups(data.playerResponse);
 
@@ -116,28 +135,23 @@
         return data;
     };
 
-    // --- 4. DOUBLE TRAP (ytInitialPlayerResponse + ytInitialData) ---
-    // Trap cả 2 biến global quan trọng nhất
+    // --- 4. DATA TRAPS ---
     const trapVariable = (varName) => {
         let internalValue = window[varName];
         Object.defineProperty(window, varName, {
             get: function () { return internalValue; },
             set: function (val) {
-                console.log(`[Hunter] 🪝 Trapped ${varName}`);
                 internalValue = processYoutubeData(val);
             },
             configurable: true
         });
     };
-
     try {
         trapVariable('ytInitialPlayerResponse');
-        trapVariable('ytInitialData'); // Thêm cái này để bắt Overlay Ads
-    } catch (e) {
-        console.log('[Hunter] Trap failed (Conflict):', e);
-    }
+        trapVariable('ytInitialData');
+    } catch (e) { }
 
-    // --- 5. STANDARD HOOKS ---
+    // --- 5. HOOKS ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
@@ -160,11 +174,10 @@
         } catch (e) { return originalJson.call(this); }
     };
 
-    // --- 6. CLEANUP INITIAL ---
+    // --- 6. CLEANUP ---
     if (window.ytInitialPlayerResponse) processYoutubeData(window.ytInitialPlayerResponse);
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
-    // History Patch
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     const origPush = history.pushState; history.pushState = function () { origPush.apply(this, arguments); notify(); };
     const origRep = history.replaceState; history.replaceState = function () { origRep.apply(this, arguments); notify(); };
