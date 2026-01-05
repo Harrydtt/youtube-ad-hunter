@@ -90,7 +90,7 @@
         let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
-                if (btn && btn.offsetParent !== null) {
+                if (btn) {
                     btn.click();
                     clicked = true;
                 }
