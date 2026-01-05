@@ -6,13 +6,10 @@
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
     const DECOY_ID = 'tPEE9ZwTmy0';
 
-    // --- BIẾN TOÀN CỤC & CỜ TRẠNG THÁI ---
+    // --- BIẾN CỜ QUAN TRỌNG (STATE FLAGS) ---
     let currentVideoElement = null;
-    let isAdProcessing = false;
-
-    // Cờ kiểm soát xung đột logic
-    let isDecoyScanning = false; // Đang trong giai đoạn ưu tiên quét Decoy
-    let isDecoyExecuting = false; // Đang thực hiện cú nhảy Decoy
+    let isDecoyPending = false; // Cờ: Đang chờ cơ hội để dùng Decoy
+    let isDecoyExecuting = false; // Cờ: Đang trong quá trình nhảy Decoy
 
     // --- SELECTORS ---
     let SKIP_SELECTORS = [
@@ -93,105 +90,157 @@
     };
 
     // ==========================================
-    // TẦNG 1: DECOY TRICK (LOGIC 1)
+    // MODULE: INJECT & DECOY
     // ==========================================
-    let injectReady = false;
-
     const injectScript = () => {
         if (document.getElementById('hunter-inject')) return;
         const script = document.createElement('script');
         script.id = 'hunter-inject';
         script.src = chrome.runtime.getURL('inject.js');
         document.head.appendChild(script);
-        script.onload = () => { injectReady = true; };
     };
 
     const executeDecoyTrick = (targetId) => {
-        console.log(`%c[Decoy] 🚨 Kích hoạt!`, 'color: red; font-weight: bold;');
-        isDecoyExecuting = true; // Đánh dấu đang thực hiện nhảy
+        console.log(`%c[Decoy] 🚨 Kích hoạt ngay lập tức!`, 'color: red; font-weight: bold;');
+        isDecoyExecuting = true;
+        isDecoyPending = false; // Đã dùng xong quyền Decoy cho lần chuyển bài này
         window.postMessage({ type: 'HUNTER_DECOY', decoyId: DECOY_ID, targetId: targetId }, '*');
     };
 
-    let scanInterval = null;
+    // ==========================================
+    // MODULE: UNIFIED HANDLER (BỘ NÃO TRUNG TÂM)
+    // ==========================================
 
-    const onNavigateStart = () => {
+    // Hàm này sẽ được gọi bởi TẤT CẢ các triggers (Event, Observer, Interval)
+    // Nó quyết định dùng vũ khí gì (Decoy hay Speedup)
+    const handleAdDetection = (source, video) => {
         if (!isHunterActive) return;
 
-        console.log('%c[Hunter] 🚀 Chuyển bài... Ưu tiên Decoy 3s...', 'color: yellow');
+        // 1. Kiểm tra xem có Ads không
+        const isAd = checkIfAdIsShowing();
 
-        // BẬT CHẾ ĐỘ ƯU TIÊN DECOY -> CHẶN LOGIC 2
-        isDecoyScanning = true;
-        isDecoyExecuting = false;
+        if (isAd && video) {
+            // --- CÓ ADS ---
 
-        if (scanInterval) clearInterval(scanInterval);
+            // Nếu đang chạy Decoy thì kệ nó, đừng can thiệp
+            if (isDecoyExecuting) return;
 
-        let attempts = 0;
-
-        scanInterval = setInterval(() => {
-            attempts++;
-            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
+            // KIỂM TRA QUYỀN ƯU TIÊN DECOY
             const urlParams = new URLSearchParams(window.location.search);
             const targetId = urlParams.get('v');
 
-            // Nếu phát hiện Ads trong thời gian quét
-            if (isAd && targetId && !isDecoyExecuting) {
-                clearInterval(scanInterval);
-                console.log(`%c[Hunter] 🔍 Phát hiện ADS (attempt ${attempts}) -> Gọi Decoy`, 'color: red; font-weight: bold;');
+            if (isDecoyPending && targetId) {
+                // ƯU TIÊN 1: DÙNG DECOY (Vũ khí hạng nặng)
+                // Lợi dụng tốc độ detect của Logic 2 để kích hoạt Logic 1
+                console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi DECOY`, 'color: magenta; font-weight: bold;');
                 executeDecoyTrick(targetId);
+            } else {
+                // ƯU TIÊN 2: DÙNG SPEED/SKIP (Vũ khí hạng nhẹ)
+                // Dùng khi Decoy đã xài rồi, hoặc ads mid-roll
+                // console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi SPEEDUP`, 'color: orange;');
+                killActiveAd(video);
             }
+        } else {
+            // --- KHÔNG CÓ ADS ---
+            if (video && !isDecoyExecuting) {
+                if (video.muted) video.muted = false;
+                if (video.playbackRate > 1) video.playbackRate = 1;
+            }
+            const controls = document.querySelector('.ytp-chrome-bottom');
+            if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
+        }
 
-            // Hết 3 giây không thấy gì -> Thả cho Logic 2 chạy
-            if (attempts > 60) {
-                clearInterval(scanInterval);
-                if (!isDecoyExecuting) {
-                    console.log('%c[Hunter] ✅ Video sạch (hoặc timeout). Thả Logic 2.', 'color: green');
-                    isDecoyScanning = false; // Tắt chế độ ưu tiên
-                }
-            }
-        }, 50);
+        hideStaticAds();
+        skipSurveys();
     };
 
-    // ==========================================
-    // TẦNG 2: SPEED + SEEK (FALLBACK)
-    // ==========================================
+    // Logic cũ (Speedup/Skip) giờ chỉ là hàm phụ trợ
     const killActiveAd = (video) => {
-        if (!video) return;
-
-        // --- KHÓA LOGIC 2 ---
-        // Nếu Decoy đang quét hoặc đang nhảy -> Logic 2 đứng im
-        if (isDecoyScanning || isDecoyExecuting) {
-            // Chỉ mute để đỡ ồn trong lúc chờ Decoy kích hoạt
-            if (!video.muted) video.muted = true;
-            return;
-        }
-
-        // Logic cũ (chỉ chạy khi Decoy đã xong hoặc timeout)
         const skipped = clickSkipButtons();
-        if (skipped) console.log(`%c[Logic 2] ✓ Click SKIP`, 'color: lime');
-
-        if (!video.muted) {
-            video.muted = true;
-            console.log(`%c[Logic 2] ✓ MUTE`, 'color: #aaa');
-        }
-
-        if (video.playbackRate < 16) {
-            video.playbackRate = 16;
-            console.log(`%c[Logic 2] ✓ Speed x16`, 'color: #ffd93d');
-        }
-
+        if (!video.muted) video.muted = true;
+        if (video.playbackRate < 16) video.playbackRate = 16;
         if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.5) {
             video.currentTime = video.duration;
-            console.log(`%c[Logic 2] ✓ SEEK đến cuối`, 'color: cyan');
         }
     };
 
+    // ==========================================
+    // TRIGGERS (CÁC GIÁC QUAN)
+    // ==========================================
+
+    // 1. Event Listener: Loaded Metadata (Cực nhanh)
     const onMetadataLoaded = (e) => {
+        handleAdDetection('MetadataEvent', e.target);
+    };
+
+    // 2. Interval Loop (Quét dọn những gì Event bỏ sót)
+    const runHunterLoop = () => {
+        createHeaderButton();
+        const video = document.querySelector('video');
+
+        // Quản lý Event Listeners
+        if (video && video !== currentVideoElement) {
+            if (currentVideoElement) {
+                ['loadedmetadata', 'durationchange', 'play', 'playing'].forEach(evt => {
+                    currentVideoElement.removeEventListener(evt, onMetadataLoaded);
+                });
+            }
+            currentVideoElement = video;
+            ['loadedmetadata', 'durationchange', 'play', 'playing'].forEach(evt => {
+                video.addEventListener(evt, onMetadataLoaded);
+            });
+        }
+
+        handleAdDetection('IntervalLoop', video);
+    };
+
+    // 3. Mutation Observer (Bắt thay đổi class DOM)
+    const observer = new MutationObserver((mutations) => {
         if (!isHunterActive) return;
-        if (checkIfAdIsShowing()) {
-            killActiveAd(e.target);
+        for (const mutation of mutations) {
+            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'src')) {
+                const video = document.querySelector('video');
+                handleAdDetection('MutationObserver', video);
+            }
+        }
+    });
+
+    // ==========================================
+    // NAVIGATE HANDLER
+    // ==========================================
+    let lastVideoId = null;
+
+    const onNavigateStart = () => {
+        console.log('%c[Hunter] 🚀 Chuyển bài -> Nạp đạn Decoy', 'color: yellow');
+
+        // Chỉ đơn giản là nạp cờ, không cần chạy vòng lặp quét riêng nữa
+        // Các trigger ở trên (Metadata/Loop) sẽ tự thấy cờ này và bắn
+        isDecoyPending = true;
+        isDecoyExecuting = false;
+
+        // Timeout an toàn: Nếu sau 5s mà không gặp ads nào thì hủy cờ Decoy
+        // Để tránh việc kích hoạt Decoy nhầm cho video sau (mid-roll)
+        setTimeout(() => {
+            if (isDecoyPending) {
+                isDecoyPending = false;
+                // console.log('[Hunter] Timeout Decoy pending -> Video sạch');
+            }
+        }, 5000);
+    };
+
+    const checkAndTriggerNavigate = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentVideoId = urlParams.get('v');
+
+        if (currentVideoId && currentVideoId !== lastVideoId) {
+            lastVideoId = currentVideoId;
+            onNavigateStart();
         }
     };
 
+    // ==========================================
+    // HELPER FUNCTIONS
+    // ==========================================
     const checkIfAdIsShowing = () => {
         const adElement = document.querySelector('.ad-showing, .ad-interrupting');
         const skipBtn = document.querySelector('.ytp-ad-skip-button');
@@ -226,85 +275,20 @@
         });
     };
 
-    // --- MAIN LOOP ---
-    const runHunter = () => {
-        createHeaderButton();
-        if (!isHunterActive) return;
-
-        const video = document.querySelector('video');
-
-        if (video && video !== currentVideoElement) {
-            if (currentVideoElement) {
-                ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
-                    currentVideoElement.removeEventListener(evt, onMetadataLoaded);
-                });
-            }
-            currentVideoElement = video;
-            ['loadedmetadata', 'durationchange', 'play', 'playing', 'canplay'].forEach(evt => {
-                video.addEventListener(evt, onMetadataLoaded);
-            });
-        }
-
-        const isAd = checkIfAdIsShowing();
-
-        if (isAd && video) {
-            isAdProcessing = true;
-            killActiveAd(video); // Gọi hàm xử lý (đã có check khóa bên trong)
-        } else {
-            // Khi hết ads -> Reset mọi trạng thái
-            if (isAdProcessing && video) {
-                // Chỉ unmute khi Decoy đã chạy xong hẳn
-                if (!isDecoyScanning && !isDecoyExecuting) {
-                    if (video.muted) video.muted = false;
-                    if (video.playbackRate > 1) video.playbackRate = 1;
-                    isAdProcessing = false;
-                }
-            }
-            const controls = document.querySelector('.ytp-chrome-bottom');
-            if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
-        }
-
-        hideStaticAds();
-        skipSurveys();
-    };
-
-    const observer = new MutationObserver((mutations) => {
-        if (!isHunterActive) return;
-        for (const mutation of mutations) {
-            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'src')) {
-                if (checkIfAdIsShowing()) {
-                    runHunter();
-                }
-            }
-        }
-    });
-
-    // --- INIT ---
+    // ==========================================
+    // INIT
+    // ==========================================
     updateSelectorsFromGithub();
     updateAdHideCSS();
     injectScript();
 
-    let lastVideoId = null;
-
-    const checkAndTriggerNavigate = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentVideoId = urlParams.get('v');
-
-        if (currentVideoId && currentVideoId !== lastVideoId) {
-            console.log(`%c[Hunter] ⚡ Đã bắt được user chuyển bài: ${lastVideoId} → ${currentVideoId}`, 'color: green; font-weight: bold; font-size: 14px;');
-            lastVideoId = currentVideoId;
-            onNavigateStart(); // Kích hoạt quy trình ưu tiên Decoy
-        }
-    };
-
     window.addEventListener('message', (e) => {
-        // Khi Decoy chạy xong -> Thả Logic 2 ra để dọn dẹp nếu cần
         if (e.data.type === 'HUNTER_DECOY_DONE') {
-            console.log('%c[Decoy] 🔄 Quay về xong! Mở khóa Logic 2.', 'color: cyan');
+            console.log('%c[Decoy] 🔄 Xong! Mở khóa Speedup.', 'color: cyan');
             isDecoyExecuting = false;
-            isDecoyScanning = false;
+            // isDecoyPending đã set false lúc execute rồi
 
-            // Fix lỗi sau khi quay về video vẫn bị mute
+            // Fix mute
             const v = document.querySelector('video');
             if (v && v.muted) v.muted = false;
         }
@@ -317,7 +301,8 @@
     setTimeout(() => { checkAndTriggerNavigate(); }, 500);
     window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
 
-    setInterval(runHunter, 50);
+    // Vòng lặp chính chạy song song với Event
+    setInterval(runHunterLoop, 50);
 
     const waitForPlayer = setInterval(() => {
         const player = document.querySelector('#movie_player');
@@ -327,5 +312,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v7.0: Priority Lock Implemented 🛡️🔒');
+    console.log('[Hunter] v8.0: Unified Detection Engine 🧠⚡');
 })();
