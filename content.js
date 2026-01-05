@@ -17,10 +17,25 @@
         console.log(`[Hunter] Settings: Decoy=${decoyEnabled}, Logic2=${logic2Enabled}`);
     });
 
+    // Lắng nghe thay đổi settings REALTIME từ popup
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local') {
+            if (changes.decoyEnabled !== undefined) {
+                decoyEnabled = changes.decoyEnabled.newValue;
+                console.log(`[Hunter] ⚙️ Decoy: ${decoyEnabled ? 'BẬT' : 'TẮT'}`);
+            }
+            if (changes.logic2Enabled !== undefined) {
+                logic2Enabled = changes.logic2Enabled.newValue;
+                console.log(`[Hunter] ⚙️ Logic 2: ${logic2Enabled ? 'BẬT' : 'TẮT'}`);
+            }
+        }
+    });
+
     // --- BIẾN CỜ QUAN TRỌNG (STATE FLAGS) ---
     let currentVideoElement = null;
     let isDecoyPending = false; // Cờ: Đang chờ cơ hội để dùng Decoy
     let isDecoyExecuting = false; // Cờ: Đang trong quá trình nhảy Decoy
+    let logic2Logged = false; // Cờ: Đã log Logic 2 chưa (tránh spam)
 
     // --- SELECTORS ---
     let SKIP_SELECTORS = [
@@ -148,7 +163,10 @@
             } else if (logic2Enabled) {
                 // ƯU TIÊN 2: DÙNG SPEED/SKIP (Vũ khí hạng nhẹ)
                 // Dùng khi Decoy đã xài rồi, hoặc ads mid-roll
-                console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi SPEEDUP`, 'color: orange;');
+                if (!logic2Logged) {
+                    console.log(`%c[Hunter] ⚡ Logic 2 tiếp quản (từ ${source})`, 'color: orange;');
+                    logic2Logged = true;
+                }
                 killActiveAd(video);
             } else {
                 // Cả 2 đều TẮT -> Chỉ im lặng mute
@@ -231,6 +249,7 @@
         // Các trigger ở trên (Metadata/Loop) sẽ tự thấy cờ này và bắn
         isDecoyPending = true;
         isDecoyExecuting = false;
+        logic2Logged = false; // Reset log flag cho video mới
 
         // Timeout an toàn: Nếu sau 5s mà không gặp ads nào thì hủy cờ Decoy
         // Để tránh việc kích hoạt Decoy nhầm cho video sau (mid-roll)
@@ -327,5 +346,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v8.2: Decoy 1s dwell + Toggle Status 🎛️⚡');
+    console.log('[Hunter] v8.3: Realtime Toggle + Reduced Log Spam 🎛️⚡');
 })();
