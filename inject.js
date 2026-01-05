@@ -138,9 +138,29 @@
 
     // Hook JSON.parse
     const originalParse = JSON.parse;
+    let parseCount = 0;
+
     JSON.parse = function (text, reviver) {
         try {
-            return processData(originalParse(text, reviver));
+            const data = originalParse(text, reviver);
+            parseCount++;
+
+            // Log mỗi 100 lần parse để xem hook có chạy không
+            if (parseCount % 100 === 0) {
+                console.log(`[Debug] JSON.parse called ${parseCount} times`);
+            }
+
+            // Log khi tìm thấy ad-related keys
+            if (data && typeof data === 'object') {
+                if (data.adPlacements) {
+                    console.log('%c[Debug] 🎯 FOUND adPlacements!', 'color: lime; font-size: 14px', data.adPlacements);
+                }
+                if (data.playerAds) {
+                    console.log('%c[Debug] 🎯 FOUND playerAds!', 'color: lime; font-size: 14px', data.playerAds);
+                }
+            }
+
+            return processData(data);
         } catch (e) {
             return originalParse(text, reviver);
         }
