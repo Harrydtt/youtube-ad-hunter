@@ -89,15 +89,32 @@
 
     // --- CORE LOGIC (Respects Settings) ---
     const clickSkipButton = () => {
-        if (!settings.logic2Enabled) return false; // Respect setting
+        if (!settings.logic2Enabled) return false;
 
-        const skipBtn = document.querySelector('.ytp-ad-skip-button') ||
-            document.querySelector('.ytp-ad-skip-button-modern') ||
-            document.querySelector('.videoAdUiSkipButton');
-        if (skipBtn) {
-            skipBtn.click();
-            console.log('[Hunter] ⏩ Skipped Ad (Click)');
-            return true;
+        // All possible skip button selectors
+        const selectors = [
+            '.ytp-ad-skip-button',
+            '.ytp-ad-skip-button-modern',
+            '.ytp-skip-ad-button',
+            '.videoAdUiSkipButton',
+            'button.ytp-ad-skip-button',
+            '.ytp-ad-skip-button-container button',
+            '[class*="skip"] button',
+            'button[class*="skip"]',
+            '.ytp-ad-skip-button-slot button',
+            '#skip-button\\:',
+            'button[id^="skip-button"]'
+        ];
+
+        for (const sel of selectors) {
+            const btn = document.querySelector(sel);
+            if (btn && btn.offsetParent !== null) { // Check visible
+                // Multiple click methods for reliability
+                btn.click();
+                btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                console.log('[Hunter] ⏩ Skipped Ad (Aggressive)');
+                return true;
+            }
         }
         return false;
     };
