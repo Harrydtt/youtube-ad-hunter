@@ -1,6 +1,6 @@
-// inject.js - Selective Pruning (Preroll Killer) + Pixel Beacon v12
+// inject.js - Direct Variable Interception v13
 (function () {
-    console.log('[Hunter] Stealth Engine v12: Preroll Killer 🔪');
+    console.log('[Hunter] Stealth Engine v13: Direct Intercept 🎯');
 
     // --- MONKEY PATCH HISTORY ---
     const originalPushState = history.pushState;
@@ -27,19 +27,17 @@
     });
 
     // =============================================
-    // 🖼️ PIXEL BEACON (Fake View cho Preroll bị cắt)
+    // 🖼️ PIXEL BEACON
     // =============================================
     const fireBeacon = (url) => {
         if (!url || !url.startsWith('http')) return;
         const img = new Image();
-        img.style.display = 'none';
         img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
     };
 
-    const fakePrerollView = (adData) => {
+    const fakeView = (adData) => {
         if (!adData) return;
         try {
-            // Chỉ tìm các link báo cáo hiển thị (Impression)
             const findUrls = (obj) => {
                 let urls = [];
                 if (!obj) return urls;
@@ -57,130 +55,162 @@
                 return urls;
             };
             const urls = findUrls(adData);
-            urls.forEach((url, i) => {
-                setTimeout(() => fireBeacon(url), i * 50); // Delay nhẹ
-            });
-            if (urls.length > 0) console.log(`%c[Beacon] 📡 Fake ${urls.length} preroll impressions`, 'color: #00aaff');
+            urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 50));
+            if (urls.length > 0) console.log(`%c[Beacon] 📡 Fake ${urls.length} impressions`, 'color: #00aaff');
         } catch (e) { }
     };
 
     // =============================================
-    // 🔪 SELECTIVE PRUNING (Bộ lọc thông minh)
+    // 🔪 PROCESS AD DATA (Cắt Preroll, giữ Midroll)
     // =============================================
-
     const processAdPlacements = (placements) => {
         if (!Array.isArray(placements) || placements.length === 0) return placements;
 
-        console.log(`%c[Debug] Đang xử lý ${placements.length} ad placements...`, 'color: yellow');
+        console.log(`%c[Debug] Processing ${placements.length} placements...`, 'color: yellow');
 
-        // Lọc mảng: Giữ lại Midroll, Cắt Preroll
-        const keptPlacements = placements.filter((p, index) => {
-            // DEBUG: Log toàn bộ data để xem cấu trúc thật
+        return placements.filter((p, i) => {
             const renderer = p.adPlacementRenderer;
-            const timeOffset = renderer?.config?.adPlacementConfig?.adTimeOffset?.offsetStartMilliseconds
-                || renderer?.timeOffsetMilliseconds;
-            const kind = renderer?.config?.adPlacementConfig?.kind;
+            const config = renderer?.config?.adPlacementConfig;
+            const kind = config?.kind || '';
+            const timeOffset = config?.adTimeOffset?.offsetStartMilliseconds || renderer?.timeOffsetMilliseconds || 0;
 
-            console.log(`%c[Debug] Ad #${index}: kind="${kind}", timeOffset="${timeOffset}"`, 'color: cyan');
-            console.log('[Debug] Full renderer:', JSON.stringify(renderer?.config, null, 2));
+            console.log(`%c[Debug] Ad #${i}: kind="${kind}", offset=${timeOffset}`, 'color: cyan');
 
-            // Dấu hiệu nhận biết Preroll
-            const isPreroll =
-                (kind === 'AD_PLACEMENT_KIND_PREROLL') ||
-                (kind === 'PREROLL') ||
-                (timeOffset === '0') ||
-                (timeOffset === 0) ||
-                (timeOffset === undefined && index === 0); // Nếu không có offset và là ad đầu tiên
+            // Nhận diện Preroll: offset = 0 hoặc kind chứa PREROLL
+            const isPreroll = timeOffset === 0 || timeOffset === '0' ||
+                kind.includes('PREROLL') ||
+                (i === 0 && !kind); // Ad đầu tiên không có kind
 
             if (isPreroll) {
-                console.log('%c[Lobotomy] 🔪 Cắt 1 PREROLL', 'color: red; font-weight: bold;');
-                fakePrerollView(p); // Báo cáo đã xem trước khi giết
-                return false; // XÓA
+                console.log('%c[Lobotomy] 🔪 Cắt PREROLL', 'color: red; font-weight: bold');
+                fakeView(p);
+                return false;
             }
 
-            console.log('%c[Lobotomy] ⏩ Giữ lại MIDROLL (cho Logic 2 xử lý)', 'color: orange');
-            return true; // GIỮ
+            console.log('%c[Lobotomy] ⏩ Giữ MIDROLL', 'color: orange');
+            return true;
         });
-
-        return keptPlacements;
     };
 
     // =============================================
-    // 🔪 HOOK TRUNG TÂM
+    // 🎯 DIRECT VARIABLE INTERCEPTION
     // =============================================
-    const processData = (data) => {
-        if (!jsonCutEnabled || !data) return data;
 
-        try {
-            // Xử lý adPlacements (Mảng chính)
-            if (data.adPlacements) {
-                const originalLength = data.adPlacements.length;
-                data.adPlacements = processAdPlacements(data.adPlacements);
+    // Xử lý ytInitialPlayerResponse có sẵn
+    const processInitial = () => {
+        if (!jsonCutEnabled) return;
 
-                // Nếu sau khi lọc mà mảng rỗng (tức là chỉ có Preroll),
-                // thì đành chấp nhận rỗng. Hy vọng Fake View cứu vớt.
-                if (originalLength > 0 && data.adPlacements.length === 0) {
-                    console.log('%c[Warning] Mảng Ads rỗng sau khi lọc. Rủi ro cao.', 'color: gray');
-                }
+        if (window.ytInitialPlayerResponse) {
+            console.log('%c[Hunter] 🎯 Tìm thấy ytInitialPlayerResponse!', 'color: lime; font-size: 14px');
+
+            if (window.ytInitialPlayerResponse.adPlacements) {
+                console.log('%c[Hunter] Có adPlacements!', 'color: lime', window.ytInitialPlayerResponse.adPlacements);
+                const original = window.ytInitialPlayerResponse.adPlacements;
+                window.ytInitialPlayerResponse.adPlacements = processAdPlacements(original);
             }
 
-            // Xử lý playerAds (Banner/Overlay) - Cái này xóa thoải mái ít bị check
-            if (data.playerAds) {
-                fakePrerollView(data.playerAds);
-                data.playerAds = [];
+            if (window.ytInitialPlayerResponse.playerAds) {
+                fakeView(window.ytInitialPlayerResponse.playerAds);
+                window.ytInitialPlayerResponse.playerAds = [];
             }
-
-        } catch (e) {
-            console.warn('[Lobotomy] Error:', e);
         }
-        return data;
     };
 
-    // Hook JSON.parse
+    // Chạy ngay và nhiều lần để bắt kịp timing
+    processInitial();
+    setTimeout(processInitial, 0);
+    setTimeout(processInitial, 100);
+    setTimeout(processInitial, 500);
+    setTimeout(processInitial, 1000);
+
+    // =============================================
+    // 🪝 DEFINE PROPERTY TRAP (Bẫy khi YouTube set biến)
+    // =============================================
+
+    // Bẫy cho ytInitialPlayerResponse
+    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
+
+    try {
+        Object.defineProperty(window, 'ytInitialPlayerResponse', {
+            get: function () {
+                return _ytInitialPlayerResponse;
+            },
+            set: function (val) {
+                console.log('%c[Trap] 🪝 ytInitialPlayerResponse được set!', 'color: magenta; font-size: 14px');
+
+                if (jsonCutEnabled && val) {
+                    if (val.adPlacements) {
+                        console.log('%c[Trap] Có adPlacements, đang xử lý...', 'color: magenta');
+                        val.adPlacements = processAdPlacements(val.adPlacements);
+                    }
+                    if (val.playerAds) {
+                        fakeView(val.playerAds);
+                        val.playerAds = [];
+                    }
+                }
+
+                _ytInitialPlayerResponse = val;
+            },
+            configurable: true
+        });
+        console.log('[Hunter] Trap ytInitialPlayerResponse: OK ✅');
+    } catch (e) {
+        console.log('[Hunter] Trap failed:', e);
+    }
+
+    // =============================================
+    // 🔪 HOOK JSON.PARSE (Backup cho API calls)
+    // =============================================
     const originalParse = JSON.parse;
-    let parseCount = 0;
 
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            parseCount++;
 
-            // Log mỗi 100 lần parse để xem hook có chạy không
-            if (parseCount % 100 === 0) {
-                console.log(`[Debug] JSON.parse called ${parseCount} times`);
+            if (!jsonCutEnabled || !data) return data;
+
+            if (data.adPlacements) {
+                console.log('%c[JSON] Tìm thấy adPlacements trong JSON.parse!', 'color: lime');
+                data.adPlacements = processAdPlacements(data.adPlacements);
             }
 
-            // Log khi tìm thấy ad-related keys
-            if (data && typeof data === 'object') {
-                if (data.adPlacements) {
-                    console.log('%c[Debug] 🎯 FOUND adPlacements!', 'color: lime; font-size: 14px', data.adPlacements);
-                }
-                if (data.playerAds) {
-                    console.log('%c[Debug] 🎯 FOUND playerAds!', 'color: lime; font-size: 14px', data.playerAds);
-                }
+            if (data.playerAds) {
+                fakeView(data.playerAds);
+                data.playerAds = [];
             }
 
-            return processData(data);
+            return data;
         } catch (e) {
             return originalParse(text, reviver);
         }
     };
 
-    // Hook Fetch
+    // =============================================
+    // 🔪 HOOK FETCH (Backup cho API calls)
+    // =============================================
     const originalJson = Response.prototype.json;
+
     Response.prototype.json = async function () {
         try {
-            return processData(await originalJson.call(this));
+            const data = await originalJson.call(this);
+
+            if (!jsonCutEnabled || !data) return data;
+
+            if (data.adPlacements) {
+                console.log('%c[Fetch] Tìm thấy adPlacements trong Fetch!', 'color: lime');
+                data.adPlacements = processAdPlacements(data.adPlacements);
+            }
+
+            if (data.playerAds) {
+                fakeView(data.playerAds);
+                data.playerAds = [];
+            }
+
+            return data;
         } catch (e) {
             return originalJson.call(this);
         }
     };
 
-    // Cleanup Initial
-    if (window.ytInitialPlayerResponse) {
-        processData(window.ytInitialPlayerResponse);
-    }
-
-    console.log('[Hunter] v12: Selective Pruning Active ✅');
-
+    console.log('[Hunter] v13: Direct Intercept Active ✅');
 })();
