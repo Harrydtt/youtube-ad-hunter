@@ -170,7 +170,7 @@
             if (!settings.offscreenEnabled) return; // Respect setting
             try {
                 chrome.runtime.sendMessage({
-                    type: 'sendToOffscreen',
+                    type: 'HUNTER_BEACON_REQUEST',
                     urls: event.data.urls
                 });
             } catch (e) { }
