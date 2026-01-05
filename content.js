@@ -1,6 +1,6 @@
-// content.js - v31.9: Critical Message Fix
+// content.js - v32.0: Expanded Static Ads
 (function () {
-    console.log('[Hunter] Initializing v31.9... 👻');
+    console.log('[Hunter] Initializing v32.0... 👻');
 
     // --- STATE (All settings, loaded from storage) ---
     let settings = {
@@ -279,5 +279,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31.9: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v32.0: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
