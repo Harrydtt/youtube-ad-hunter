@@ -154,6 +154,18 @@
             get: function () { return _ytInitialPlayerResponse; },
             set: function (val) {
                 console.log('%c[Trap] 🪝 ytInitialPlayerResponse set!', 'color: magenta');
+
+                // DEBUG: Log các keys có trong data
+                if (val) {
+                    const keys = Object.keys(val);
+                    console.log('[Debug] Keys in ytInitialPlayerResponse:', keys);
+
+                    // Check cụ thể các ad-related keys
+                    if (val.adPlacements) console.log('[Debug] adPlacements:', val.adPlacements.length, 'items');
+                    if (val.playerAds) console.log('[Debug] playerAds:', val.playerAds);
+                    if (val.adSlots) console.log('[Debug] adSlots:', val.adSlots);
+                }
+
                 _ytInitialPlayerResponse = processYoutubeData(val);
             },
             configurable: true
