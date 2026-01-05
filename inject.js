@@ -1,6 +1,6 @@
 // inject.js - v19: The Time Stopper (Trap Restored)
 (function () {
-    console.log('[Hunter] Stealth Engine v19: The Time Stopper ⏱️');
+    console.log('[Hunter] Stealth Engine v20: Main World Injection 💉');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
