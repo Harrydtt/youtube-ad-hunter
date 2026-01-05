@@ -71,18 +71,26 @@
     const processAdPlacements = (placements) => {
         if (!Array.isArray(placements) || placements.length === 0) return placements;
 
+        console.log(`%c[Debug] Đang xử lý ${placements.length} ad placements...`, 'color: yellow');
+
         // Lọc mảng: Giữ lại Midroll, Cắt Preroll
-        const keptPlacements = placements.filter(p => {
-            // Đào sâu tìm thông tin renderer
-            const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
-            if (!renderer) return true; // Không rõ là gì thì giữ lại cho an toàn
+        const keptPlacements = placements.filter((p, index) => {
+            // DEBUG: Log toàn bộ data để xem cấu trúc thật
+            const renderer = p.adPlacementRenderer;
+            const timeOffset = renderer?.config?.adPlacementConfig?.adTimeOffset?.offsetStartMilliseconds
+                || renderer?.timeOffsetMilliseconds;
+            const kind = renderer?.config?.adPlacementConfig?.kind;
+
+            console.log(`%c[Debug] Ad #${index}: kind="${kind}", timeOffset="${timeOffset}"`, 'color: cyan');
+            console.log('[Debug] Full renderer:', JSON.stringify(renderer?.config, null, 2));
 
             // Dấu hiệu nhận biết Preroll
             const isPreroll =
-                (p.adPlacementRenderer?.config?.adPlacementConfig?.kind === 'PREROLL') ||
-                (renderer.adBreakType === 'PREROLL') ||
-                (p.adPlacementRenderer?.timeOffsetMilliseconds === '0') ||
-                (p.adPlacementRenderer?.timeOffsetMilliseconds === 0);
+                (kind === 'AD_PLACEMENT_KIND_PREROLL') ||
+                (kind === 'PREROLL') ||
+                (timeOffset === '0') ||
+                (timeOffset === 0) ||
+                (timeOffset === undefined && index === 0); // Nếu không có offset và là ad đầu tiên
 
             if (isPreroll) {
                 console.log('%c[Lobotomy] 🔪 Cắt 1 PREROLL', 'color: red; font-weight: bold;');
