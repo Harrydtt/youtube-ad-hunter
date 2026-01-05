@@ -6,6 +6,17 @@
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
     const DECOY_ID = 'tPEE9ZwTmy0';
 
+    // --- TOGGLE FLAGS (Điều khiển từ Popup) ---
+    let decoyEnabled = true;  // Mặc định BẬT
+    let logic2Enabled = true; // Mặc định BẬT
+
+    // Load settings từ storage
+    chrome.storage.local.get(['decoyEnabled', 'logic2Enabled'], (result) => {
+        decoyEnabled = result.decoyEnabled !== false;
+        logic2Enabled = result.logic2Enabled !== false;
+        console.log(`[Hunter] Settings: Decoy=${decoyEnabled}, Logic2=${logic2Enabled}`);
+    });
+
     // --- BIẾN CỜ QUAN TRỌNG (STATE FLAGS) ---
     let currentVideoElement = null;
     let isDecoyPending = false; // Cờ: Đang chờ cơ hội để dùng Decoy
@@ -129,16 +140,19 @@
             const urlParams = new URLSearchParams(window.location.search);
             const targetId = urlParams.get('v');
 
-            if (isDecoyPending && targetId) {
+            if (isDecoyPending && targetId && decoyEnabled) {
                 // ƯU TIÊN 1: DÙNG DECOY (Vũ khí hạng nặng)
                 // Lợi dụng tốc độ detect của Logic 2 để kích hoạt Logic 1
                 console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi DECOY`, 'color: magenta; font-weight: bold;');
                 executeDecoyTrick(targetId);
-            } else {
+            } else if (logic2Enabled) {
                 // ƯU TIÊN 2: DÙNG SPEED/SKIP (Vũ khí hạng nhẹ)
                 // Dùng khi Decoy đã xài rồi, hoặc ads mid-roll
-                // console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi SPEEDUP`, 'color: orange;');
+                console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi SPEEDUP`, 'color: orange;');
                 killActiveAd(video);
+            } else {
+                // Cả 2 đều TẮT -> Chỉ im lặng mute
+                if (!video.muted) video.muted = true;
             }
         } else {
             // --- KHÔNG CÓ ADS ---
@@ -312,5 +326,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v8.0: Unified Detection Engine 🧠⚡');
+    console.log('[Hunter] v8.1: Popup Toggle Controls 🎛️⚡');
 })();
