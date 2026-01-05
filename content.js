@@ -310,5 +310,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v9.0: JSON Lobotomy + Fallback 🔪⚡');
+    console.log('[Hunter] v13: Direct Intercept + Fallback 🎯⚡');
 })();
