@@ -93,71 +93,47 @@
         'button.ytp-ad-skip-button-modern.ytp-button'
     ];
 
-    // Hàm mô phỏng click chuột thật (Bypass sự kiện click giả)
-    const triggerNativeClick = (element) => {
-        const events = ['mouseover', 'mousedown', 'mouseup', 'click'];
-        events.forEach(type => {
-            const event = new MouseEvent(type, {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                buttons: 1
-            });
-            element.dispatchEvent(event);
-        });
+    // Hàm kiểm tra có đang có ads không
+    const checkIfAdIsShowing = () => {
+        return !!(
+            document.querySelector('.ad-showing') ||
+            document.querySelector('.ad-interrupting') ||
+            document.querySelector('.ytp-ad-skip-button')
+        );
     };
 
     const clickSkipButton = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
-
         SKIP_SELECTORS.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(btn => {
-                // Kiểm tra: Nút phải tồn tại và HIỂN THỊ (có kích thước > 0)
-                if (btn && typeof btn.click === 'function' && (btn.offsetWidth > 0 || btn.offsetHeight > 0)) {
-
-                    // 1. Thử click native (mạnh nhất)
-                    triggerNativeClick(btn);
-
-                    // 2. Click dự phòng (cách cũ)
+            document.querySelectorAll(selector).forEach(btn => {
+                // Check: offsetParent !== null = visible
+                if (btn && btn.offsetParent !== null) {
                     btn.click();
-
                     clicked = true;
-                    console.log(`[Hunter] ⏩ Skipped Ad using: ${selector}`);
                 }
             });
         });
 
+        if (clicked) console.log('[Hunter] ⏩ Skipped Ad');
         return clicked;
     };
 
     const fastForwardAd = () => {
-        if (!settings.logic2Enabled) return; // Respect setting
+        if (!settings.logic2Enabled) return;
 
         const video = document.querySelector('video');
-        if (video) {
-            let isAd = false;
-            if (document.querySelector('.ad-showing') || document.querySelector('.ad-interrupting')) {
-                isAd = true;
-            }
-            const adModule = document.querySelector('.video-ads.ytp-ad-module');
-            if (adModule && adModule.children.length > 0) {
-                isAd = true;
-            }
-
-            if (isAd && !isNaN(video.duration) && video.duration > 0) {
-                video.playbackRate = 16.0;
-                video.currentTime = video.duration;
-                console.log('[Hunter] ⏩ Fast Forwarded Ad');
-                if (video.paused) video.play();
-            }
+        if (video && !isNaN(video.duration) && video.duration > 0) {
+            video.muted = true;
+            video.playbackRate = 16.0;
+            video.currentTime = video.duration;
+            console.log('[Hunter] ⏩ Fast Forwarded Ad');
         }
     };
 
     const removeStaticAds = () => {
-        if (!settings.staticAdsEnabled) return; // Respect setting
+        if (!settings.staticAdsEnabled) return;
 
         STATIC_AD_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
@@ -166,11 +142,17 @@
     };
 
     const runHunterLoop = () => {
-        if (!settings.hunterActive) return; // Master toggle
+        if (!settings.hunterActive) return;
 
-        clickSkipButton();      // Only runs if logic2Enabled
-        fastForwardAd();        // Only runs if logic2Enabled 
-        removeStaticAds();      // Only runs if staticAdsEnabled
+        const isAd = checkIfAdIsShowing();
+
+        if (isAd) {
+            // CHỈ xử lý khi có ads
+            clickSkipButton();
+            fastForwardAd();
+        }
+
+        removeStaticAds();
     };
 
     // --- INJECT SCRIPT ---
