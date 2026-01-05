@@ -327,5 +327,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v8.1: Popup Toggle Controls 🎛️⚡');
+    console.log('[Hunter] v8.2: Decoy 1s dwell + Toggle Status 🎛️⚡');
 })();
