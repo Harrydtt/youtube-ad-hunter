@@ -1,25 +1,24 @@
-// inject.js - v26: The Cleaner (Mealbar Wipe)
+// inject.js - v27: The Bouncer (Client-Side Muzzle)
 (function () {
-    console.log('[Hunter] Stealth Engine v26: The Cleaner 🧹');
+    console.log('[Hunter] Stealth Engine v27: The Bouncer 🛡️');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        // Thêm Mealbar vào danh sách đen
         popup_keys: [
             'upsellDialogRenderer',
             'promoMessageRenderer',
             'tvAppUpsellDialogRenderer',
             'playerErrorMessageRenderer',
-            'mealbarPromoRenderer',       // <--- CON NÀY
+            'mealbarPromoRenderer',
             'actionCompanionAdRenderer',
             'statementBannerRenderer'
         ]
     };
     let jsonCutEnabled = true;
 
-    // Load Config (Backup)
+    // Load Config
     try {
         const configEl = document.getElementById('hunter-config-data');
         if (configEl) {
@@ -36,7 +35,67 @@
         }
     });
 
-    // --- 2. BEACON SYSTEM ---
+    // --- 2. CSS MUZZLE (Fastest Layer) ---
+    // Tiêm CSS để ẩn ngay lập tức các thành phần này trước khi JS kịp chạy
+    const style = document.createElement('style');
+    style.id = 'hunter-muzzle-css';
+    style.textContent = `
+        ytd-enforcement-message-view-model,
+        tp-yt-paper-dialog[role="dialog"] ytd-enforcement-message-view-model,
+        #mealbar-promo-renderer,
+        ytd-popup-container ytd-promo-message-renderer,
+        ytd-popup-container ytd-unity-gamification-renderer,
+        ytd-popup-container ytd-mealbar-promo-renderer,
+        .ytp-ad-overlay-container
+        {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            height: 0 !important;
+            width: 0 !important;
+            z-index: -9999 !important;
+        }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+
+    // --- 3. DOM BOUNCER (MutationObserver) ---
+    // Canh gác DOM, thấy thằng nào ngoi lên là đấm
+    const observer = new MutationObserver((mutations) => {
+        if (!jsonCutEnabled) return;
+
+        for (constmutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType !== 1) continue; // Chỉ check Element node
+
+                const tag = node.tagName.toLowerCase();
+                const id = node.id;
+                const className = node.className;
+
+                // Check các thẻ nguy hiểm
+                if (tag === 'ytd-enforcement-message-view-model' ||
+                    tag === 'ytd-mealbar-promo-renderer' ||
+                    id === 'mealbar-promo-renderer' ||
+                    (tag === 'tp-yt-paper-dialog' && node.querySelector('ytd-enforcement-message-view-model'))
+                ) {
+                    node.remove();
+                    console.log(`%c[Bouncer] 🥊 Kicked out: ${tag}#${id}`, 'color: red; font-weight: bold;');
+
+                    // Nếu là Popup chặn xem, ta cần bấm Play lại cho video
+                    const video = document.querySelector('video');
+                    if (video && video.paused) {
+                        video.play();
+                        console.log('[Bouncer] ▶️ Resuming video...');
+                    }
+                }
+            }
+        }
+    });
+
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+
+    // --- 4. BEACON SYSTEM ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
@@ -77,54 +136,24 @@
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC: NUCLEAR WIPE ---
-    // Không lọc, không tuyển chọn. Gặp là XÓA SẠCH.
+    // --- 5. CORE LOGIC: NUCLEAR WIPE (Server-Side) ---
     const nukeAds = (data) => {
-        let adsFound = 0;
-
-        // 1. Array-based Ads
-        if (data.adPlacements) {
-            if (data.adPlacements.length > 0) {
-                fakeAdViewing(data.adPlacements);
-                data.adPlacements = [];
-                adsFound++;
-            }
-        }
-        if (data.playerResponse?.adPlacements) {
-            if (data.playerResponse.adPlacements.length > 0) {
-                fakeAdViewing(data.playerResponse.adPlacements);
-                data.playerResponse.adPlacements = [];
-                adsFound++;
-            }
-        }
-
-        // 2. Object/Other Ads
-        if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; adsFound++; }
-        if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; adsFound++; }
-        if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; adsFound++; }
-        if (data.playerResponse?.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; adsFound++; }
-
-        if (adsFound > 0) console.log(`%c[Nuclear] ☢️ Wiped ${adsFound} ad sources`, 'color: red; font-weight: bold; font-size: 12px;');
+        if (data.adPlacements?.length > 0) { fakeAdViewing(data.adPlacements); data.adPlacements = []; }
+        if (data.playerResponse?.adPlacements?.length > 0) { fakeAdViewing(data.playerResponse.adPlacements); data.playerResponse.adPlacements = []; }
+        if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
+        if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
+        if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
+        if (data.playerResponse?.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; }
     };
 
     const stripPopups = (data) => {
         if (data.auxiliaryUi?.messageRenderers) {
             for (let key of CONFIG.popup_keys) {
-                if (data.auxiliaryUi.messageRenderers[key]) {
-                    delete data.auxiliaryUi.messageRenderers[key];
-                    console.log(`%c[Hunter] 🚫 Blocked Popup: ${key}`, 'color: red; font-weight: bold;');
-                }
+                if (data.auxiliaryUi.messageRenderers[key]) delete data.auxiliaryUi.messageRenderers[key];
             }
         }
-        if (data.overlay?.upsellDialogRenderer) {
-            delete data.overlay.upsellDialogRenderer;
-            console.log(`%c[Hunter] 🚫 Blocked Upsell Overlay`, 'color: red; font-weight: bold;');
-        }
-        // Thêm check cho Mealbar
-        if (data.playerResponse?.auxiliaryUi?.messageRenderers?.mealbarPromoRenderer) {
-            delete data.playerResponse.auxiliaryUi.messageRenderers.mealbarPromoRenderer;
-            console.log(`%c[Hunter] 🚫 Blocked Mealbar`, 'color: red;');
-        }
+        if (data.overlay?.upsellDialogRenderer) delete data.overlay.upsellDialogRenderer;
+        if (data.playerResponse?.auxiliaryUi?.messageRenderers?.mealbarPromoRenderer) delete data.playerResponse.auxiliaryUi.messageRenderers.mealbarPromoRenderer;
     };
 
     const processYoutubeData = (data) => {
@@ -137,15 +166,11 @@
         return data;
     };
 
-    // --- 4. DATA TRAPS ---
+    // --- 6. DATA TRAPS ---
     const ensurePlayability = (data) => {
-        if (data.playabilityStatus) {
-            if (data.playabilityStatus.status === 'LOGIN_REQUIRED') return;
-            if (data.playabilityStatus.status !== 'OK') {
-                console.log(`[Hunter] 🔓 Fixed Playability: ${data.playabilityStatus.status} -> OK`);
-                data.playabilityStatus.status = 'OK';
-                data.playabilityStatus.playableInEmbed = true;
-            }
+        if (data.playabilityStatus && data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
+            data.playabilityStatus.status = 'OK';
+            data.playabilityStatus.playableInEmbed = true;
         }
     };
 
@@ -160,21 +185,14 @@
             configurable: true
         });
     };
+    try { trapVariable('ytInitialPlayerResponse'); trapVariable('ytInitialData'); } catch (e) { }
 
-    try {
-        trapVariable('ytInitialPlayerResponse');
-        trapVariable('ytInitialData');
-    } catch (e) { }
-
-    // --- 5. HOOKS ---
+    // --- 7. HOOKS ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            if (data) {
-                processYoutubeData(data);
-                if (data.playabilityStatus) ensurePlayability(data);
-            }
+            if (data) { processYoutubeData(data); if (data.playabilityStatus) ensurePlayability(data); }
             return data;
         } catch (e) { return originalParse(text, reviver); }
     };
@@ -183,18 +201,12 @@
     Response.prototype.json = async function () {
         try {
             const data = await originalJson.call(this);
-            if (data) {
-                processYoutubeData(data);
-                if (data.playabilityStatus) ensurePlayability(data);
-            }
+            if (data) { processYoutubeData(data); if (data.playabilityStatus) ensurePlayability(data); }
             return data;
         } catch (e) { return originalJson.call(this); }
     };
 
-    if (window.ytInitialPlayerResponse) {
-        processYoutubeData(window.ytInitialPlayerResponse);
-        ensurePlayability(window.ytInitialPlayerResponse);
-    }
+    if (window.ytInitialPlayerResponse) { processYoutubeData(window.ytInitialPlayerResponse); ensurePlayability(window.ytInitialPlayerResponse); }
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
