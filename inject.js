@@ -1,17 +1,18 @@
-// inject.js - v17: The Hybrid (v13 Core + Offscreen Bridge)
+// inject.js - v18: The De-Monetizer (Fix Client-Side Popup)
 (function () {
-    console.log('[Hunter] Stealth Engine v17: The Hybrid 🛡️');
+    console.log('[Hunter] Stealth Engine v18: De-Monetizer �');
 
     // --- 1. CONFIG & STATE ---
-    // Cấu hình mặc định phòng khi chưa tải được từ GitHub
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
+        // Các flag đánh dấu video có kiếm tiền -> Cần xóa
+        monetization_flags: ['isMonetized', 'isCrawlable', 'showAds', 'allowBelowThePlayerCompanion'],
         preroll_indicators: ['PREROLL', '0', 0]
     };
     let jsonCutEnabled = true;
 
-    // Load Config động từ thẻ script do content.js tạo ra (backup)
+    // Load Config động (Backup)
     try {
         const configEl = document.getElementById('hunter-config-data');
         if (configEl) {
@@ -21,21 +22,16 @@
         }
     } catch (e) { }
 
-    // Lắng nghe lệnh Bật/Tắt từ content.js
     window.addEventListener('message', (e) => {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
-            console.log(`%c[Stealth] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`, 'color: lime');
         }
     });
 
-    // --- 2. PIXEL BEACON & OFFSCREEN BRIDGE ---
+    // --- 2. BEACON SYSTEM (Giữ nguyên logic Offscreen xịn của ông) ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
-        window.postMessage({
-            type: 'HUNTER_SEND_TO_BACKGROUND',
-            urls: urls
-        }, '*');
+        window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
     };
 
     const fireBeacon = (url) => {
@@ -48,7 +44,6 @@
     const fakeAdViewing = (adData) => {
         if (!adData) return;
         try {
-            // Đệ quy tìm tất cả link tracking
             const findUrls = (obj) => {
                 let urls = [];
                 if (!obj) return urls;
@@ -67,148 +62,113 @@
             };
 
             const urls = findUrls(adData);
-
             if (urls.length > 0) {
-                // 1. Gửi ra Offscreen (Project Phantom)
+                // Ưu tiên Offscreen
                 sendToOffscreen(urls);
-
-                // 2. Local Pixel Beacon (Backup)
-                urls.forEach((url, i) => {
-                    setTimeout(() => fireBeacon(url), i * 100 + Math.random() * 200);
-                });
-
-                console.log(`%c[Beacon] 📡 Fake ${urls.length} impressions`, 'color: cyan');
+                // Backup Pixel tại chỗ (cho chắc cốp)
+                urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 150));
+                console.log(`%c[Beacon] � Fake ${urls.length} impressions`, 'color: #00ff00');
             }
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC: SELECTIVE PRUNING (Cắt tỉa thông minh) ---
-    const processAdPlacements = (placements) => {
-        if (!Array.isArray(placements) || placements.length === 0) return placements;
+    // --- 3. DE-MONETIZATION LOGIC (FIX POPUP) ---
+    // Xóa dấu vết kiếm tiền trong Metadata
+    const stripMonetization = (data) => {
+        // 1. Tắt cờ kiếm tiền trong videoDetails
+        if (data.videoDetails) {
+            data.videoDetails.isMonetized = false; // QUAN TRỌNG NHẤT
+            if (data.videoDetails.allowRatings === false) data.videoDetails.allowRatings = true; // Fix phụ
+        }
 
-        // Lọc mảng: Giữ Midroll, Bỏ Preroll
-        return placements.filter(p => {
-            const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
+        // 2. Xóa cấu hình DAI (Dynamic Ad Insertion)
+        if (data.playerConfig && data.playerConfig.daiConfig) {
+            data.playerConfig.daiConfig = null;
+        }
 
-            // Logic nhận diện Preroll dựa trên Config
-            let isPreroll = false;
+        // 3. Xóa nhịp tim kiểm tra Ads (Ad Heartbeat)
+        if (data.adBreakHeartbeatParams) {
+            delete data.adBreakHeartbeatParams;
+        }
 
-            // Check loại ad (PREROLL)
-            if (renderer?.adBreakType && CONFIG.preroll_indicators.includes(renderer.adBreakType)) isPreroll = true;
-            if (p.adPlacementRenderer?.config?.adPlacementConfig?.kind && CONFIG.preroll_indicators.includes(p.adPlacementRenderer.config.adPlacementConfig.kind)) isPreroll = true;
-
-            // Check thời gian (0ms)
-            const timeOffset = p.adPlacementRenderer?.timeOffsetMilliseconds;
-            if (CONFIG.preroll_indicators.includes(timeOffset)) isPreroll = true;
-
-            if (isPreroll) {
-                console.log('%c[Lobotomy] 🔪 Cắt 1 Preroll', 'color: red; font-weight: bold;');
-                fakeAdViewing(p); // Báo cáo trước khi giết
-                return false; // Loại bỏ khỏi mảng
-            }
-
-            console.log('%c[Lobotomy] ⏩ Giữ lại Mid-roll', 'color: orange');
-            return true; // Giữ lại
-        });
+        // 4. Chuyển trạng thái Playability (nếu bị dính cờ OK_WITH_ADS)
+        if (data.playabilityStatus && data.playabilityStatus.status === 'OK_WITH_ADS') {
+            data.playabilityStatus.status = 'OK';
+        }
     };
 
-    // --- 4. DATA INTERCEPTOR (Kẻ đứng giữa) ---
+    // --- 4. CORE PROCESSOR ---
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
 
         try {
-            // Xử lý adPlacements (Root)
-            if (data.adPlacements) {
-                console.log('%c[Hunter] 🎯 Tìm thấy adPlacements (Root)!', 'color: lime');
-                data.adPlacements = processAdPlacements(data.adPlacements);
+            // A. Fake View trước khi làm bất cứ gì
+            // (Phải lấy link tracking TRƯỚC khi xóa)
+            const adClone = {};
+            if (data.adPlacements) adClone.adPlacements = data.adPlacements;
+            if (data.playerResponse?.adPlacements) adClone.nestedAds = data.playerResponse.adPlacements;
+            if (data.playerAds) adClone.playerAds = data.playerAds;
+
+            // Chỉ fake view nếu tìm thấy ads
+            if (Object.keys(adClone).length > 0) {
+                fakeAdViewing(adClone);
             }
 
-            // Xử lý playerResponse.adPlacements (Nested - AJAX)
+            // B. Xóa sạch Ads (Không lọc nữa, xóa hết để đồng bộ với De-Monetization)
+            if (data.adPlacements) data.adPlacements = [];
+            if (data.playerAds) data.playerAds = [];
+            if (data.adSlots) data.adSlots = [];
             if (data.playerResponse) {
-                if (data.playerResponse.adPlacements) {
-                    console.log('%c[Hunter] 🎯 Tìm thấy adPlacements (Nested)!', 'color: lime');
-                    data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
-                }
-                if (data.playerResponse.playerAds) {
-                    fakeAdViewing(data.playerResponse.playerAds);
-                    data.playerResponse.playerAds = [];
-                }
+                if (data.playerResponse.adPlacements) data.playerResponse.adPlacements = [];
+                if (data.playerResponse.playerAds) data.playerResponse.playerAds = [];
             }
 
-            // Xử lý playerAds (Thường là banner/overlay) -> Xóa sạch an toàn hơn
-            if (data.playerAds) {
-                fakeAdViewing(data.playerAds);
-                data.playerAds = []; // Gán mảng rỗng thay vì delete
-            }
+            // C. Áp dụng De-Monetization (Để Player không thắc mắc tại sao Ads rỗng)
+            stripMonetization(data);
 
-            // Xử lý adSlots (Cấu trúc mới)
-            if (data.adSlots) {
-                fakeAdViewing(data.adSlots);
-                data.adSlots = [];
-            }
+            console.log('%c[Hunter] ✨ Video De-Monetized Successfully', 'color: magenta; font-weight: bold;');
 
         } catch (e) {
-            console.warn('[Hunter] Error processing data:', e);
+            console.warn('[Hunter] Error:', e);
         }
         return data;
     };
 
-    // --- 5. HOOK JSON.PARSE ---
+    // --- 5. HOOKS (JSON & FETCH) ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            // Chỉ can thiệp nếu data có chứa key quảng cáo
-            if (data && CONFIG.ad_keys.some(k => (data[k] || (data.playerResponse && data.playerResponse[k])))) {
+            // Hook mọi gói tin có tiềm năng chứa ads hoặc metadata video
+            if (data && (data.adPlacements || data.videoDetails || data.playerResponse)) {
                 return processYoutubeData(data);
             }
             return data;
-        } catch (e) {
-            return originalParse(text, reviver);
-        }
+        } catch (e) { return originalParse(text, reviver); }
     };
 
-    // --- 6. HOOK FETCH API ---
     const originalJson = Response.prototype.json;
     Response.prototype.json = async function () {
         try {
             const data = await originalJson.call(this);
-            if (data && CONFIG.ad_keys.some(k => (data[k] || (data.playerResponse && data.playerResponse[k])))) {
+            if (data && (data.adPlacements || data.videoDetails || data.playerResponse)) {
                 return processYoutubeData(data);
             }
             return data;
-        } catch (e) {
-            return originalJson.call(this);
-        }
+        } catch (e) { return originalJson.call(this); }
     };
 
-    // --- 7. CLEANUP INITIAL DATA (Dùng Trap của v13 cũ + Timing 4 attempts) ---
+    // --- 6. CLEANUP INITIAL ---
     const processInitial = () => {
         if (window.ytInitialPlayerResponse) {
             processYoutubeData(window.ytInitialPlayerResponse);
         }
-    }
-
-    // Timing check
+    };
     processInitial();
-    setTimeout(processInitial, 0);
+    // Chạy lại vài lần để đảm bảo race condition
     setTimeout(processInitial, 100);
-    setTimeout(processInitial, 500);
 
-    // Trap (Backup)
-    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
-    try {
-        Object.defineProperty(window, 'ytInitialPlayerResponse', {
-            get: function () { return _ytInitialPlayerResponse; },
-            set: function (val) {
-                console.log('%c[Trap] 🪝 ytInitialPlayerResponse được set!', 'color: magenta');
-                _ytInitialPlayerResponse = processYoutubeData(val);
-            },
-            configurable: true
-        });
-    } catch (e) { }
-
-    // Patch History API để báo content.js khi chuyển bài
+    // History Patch
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     const origPush = history.pushState; history.pushState = function () { origPush.apply(this, arguments); notify(); };
     const origRep = history.replaceState; history.replaceState = function () { origRep.apply(this, arguments); notify(); };
