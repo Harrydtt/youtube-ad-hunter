@@ -74,30 +74,62 @@
         window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     };
 
-    // --- CORE LOGIC (Respects Settings) ---
-    // Reference: Working logic from "no offscreen" version
+    // Cập nhật danh sách Selector mới nhất (bao gồm cả nút skip dạng mới)
     const SKIP_SELECTORS = [
-        '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.ytp-ad-skip-button-slot',
-        '.ytp-skip-ad-button', '.videoAdUiSkipButton', 'button.ytp-ad-skip-button',
-        'button[class*="skip"]', '[id="skip-button:"]', 'button[aria-label^="Skip ad"]',
-        'button[aria-label^="Skip Ad"]', 'button[aria-label^="Bỏ qua"]',
-        '.ytp-ad-skip-button-container button', '.ytp-ad-overlay-close-button'
+        '.ytp-ad-skip-button',
+        '.ytp-ad-skip-button-modern',
+        '.ytp-ad-skip-button-slot',
+        '.ytp-skip-ad-button',
+        '.videoAdUiSkipButton',
+        'button.ytp-ad-skip-button',
+        'button[class*="skip"]',
+        '[id="skip-button:"]',
+        'button[aria-label^="Skip ad"]',
+        'button[aria-label^="Skip Ad"]',
+        'button[aria-label^="Bỏ qua"]',
+        '.ytp-ad-skip-button-container button',
+        '.ytp-ad-overlay-close-button',
+        '#skip-button\\:6 > span > button',
+        'button.ytp-ad-skip-button-modern.ytp-button'
     ];
+
+    // Hàm mô phỏng click chuột thật (Bypass sự kiện click giả)
+    const triggerNativeClick = (element) => {
+        const events = ['mouseover', 'mousedown', 'mouseup', 'click'];
+        events.forEach(type => {
+            const event = new MouseEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                buttons: 1
+            });
+            element.dispatchEvent(event);
+        });
+    };
 
     const clickSkipButton = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
+
         SKIP_SELECTORS.forEach(selector => {
-            document.querySelectorAll(selector).forEach(btn => {
-                if (btn) {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(btn => {
+                // Kiểm tra: Nút phải tồn tại và HIỂN THỊ (có kích thước > 0)
+                if (btn && typeof btn.click === 'function' && (btn.offsetWidth > 0 || btn.offsetHeight > 0)) {
+
+                    // 1. Thử click native (mạnh nhất)
+                    triggerNativeClick(btn);
+
+                    // 2. Click dự phòng (cách cũ)
                     btn.click();
+
                     clicked = true;
+                    console.log(`[Hunter] ⏩ Skipped Ad using: ${selector}`);
                 }
             });
         });
 
-        if (clicked) console.log('[Hunter] ⏩ Skipped Ad');
         return clicked;
     };
 
