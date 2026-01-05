@@ -1,12 +1,12 @@
-// inject.js - v24: The Detective (Deep Inspection)
+// inject.js - v25: The Nuclear Option (Clean Slate)
 (function () {
-    console.log('[Hunter] Stealth Engine v24: The Detective 🕵️‍♂️');
+    console.log('[Hunter] Stealth Engine v25: The Nuclear Option ☢️');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer']
+        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer', 'playerErrorMessageRenderer']
     };
     let jsonCutEnabled = true;
 
@@ -23,6 +23,7 @@
     window.addEventListener('message', (e) => {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
+            console.log(`%c[Nuclear] ⚙️ Cut Mode: ${jsonCutEnabled}`, 'color: orange');
         }
     });
 
@@ -67,80 +68,87 @@
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC: THE DETECTIVE ---
-    const processAdPlacements = (placements) => {
-        if (!Array.isArray(placements) || placements.length === 0) return placements;
+    // --- 3. CORE LOGIC: NUCLEAR WIPE ---
+    // Không lọc, không tuyển chọn. Gặp là XÓA SẠCH.
+    const nukeAds = (data) => {
+        let adsFound = 0;
 
-        return placements.filter((p, index) => {
-            const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
-            let isPreroll = false;
-
-            // Debug Info
-            const debugType = renderer?.adBreakType || p.adPlacementRenderer?.config?.adPlacementConfig?.kind;
-            const debugTime = p.adPlacementRenderer?.timeOffsetMilliseconds;
-
-            // 1. Check Keywords (PREROLL / 0)
-            const adType = String(debugType).toUpperCase();
-            if (adType.includes('PREROLL') || adType === '0') isPreroll = true;
-
-            // 2. Check Time (if exists)
-            if (debugTime !== undefined && debugTime !== null) {
-                const t = parseInt(debugTime);
-                if (!isNaN(t) && t < 5000) isPreroll = true;
-            } else {
-                // 3. Heuristic: Index 0 thường là Preroll nếu time = undefined
-                // Trừ phi nó là loại "AD_PLACEMENT_KIND_END" (quảng cáo cuối)
-                if (index === 0 && !adType.includes('END')) {
-                    console.log('[Hunter] 🕵️‍♂️ Suspicious Index 0 with no time -> Assuming Preroll');
-                    isPreroll = true;
-                }
+        // 1. Array-based Ads
+        if (data.adPlacements) {
+            if (data.adPlacements.length > 0) {
+                fakeAdViewing(data.adPlacements);
+                data.adPlacements = [];
+                adsFound++;
             }
-
-            console.log(`[Check #${index}] Type: ${debugType}, Time: ${debugTime} -> Kill? ${isPreroll}`);
-
-            if (isPreroll) {
-                fakeAdViewing(p);
-                return false; // Kill
+        }
+        if (data.playerResponse?.adPlacements) {
+            if (data.playerResponse.adPlacements.length > 0) {
+                fakeAdViewing(data.playerResponse.adPlacements);
+                data.playerResponse.adPlacements = [];
+                adsFound++;
             }
+        }
 
-            return true; // Keep (Midroll)
-        });
+        // 2. Object/Other Ads
+        if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; adsFound++; }
+        if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; adsFound++; }
+        if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; adsFound++; }
+        if (data.playerResponse?.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; adsFound++; }
+
+        if (adsFound > 0) console.log(`%c[Nuclear] ☢️ Wiped ${adsFound} ad sources`, 'color: red; font-weight: bold; font-size: 12px;');
     };
 
     const stripPopups = (data) => {
         if (data.auxiliaryUi?.messageRenderers) {
             for (let key of CONFIG.popup_keys) {
-                if (data.auxiliaryUi.messageRenderers[key]) delete data.auxiliaryUi.messageRenderers[key];
+                if (data.auxiliaryUi.messageRenderers[key]) {
+                    delete data.auxiliaryUi.messageRenderers[key];
+                    console.log(`%c[Hunter] 🚫 Blocked Popup: ${key}`, 'color: red; font-weight: bold;');
+                }
             }
         }
-        if (data.overlay?.upsellDialogRenderer) delete data.overlay.upsellDialogRenderer;
+        if (data.overlay?.upsellDialogRenderer) {
+            delete data.overlay.upsellDialogRenderer;
+            console.log(`%c[Hunter] 🚫 Blocked Upsell Overlay`, 'color: red; font-weight: bold;');
+        }
     };
 
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
         try {
-            if (data.adPlacements) data.adPlacements = processAdPlacements(data.adPlacements);
-            if (data.playerResponse?.adPlacements) data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
-
-            if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
-            if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
-            if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
-
+            nukeAds(data);
             stripPopups(data);
             if (data.playerResponse) stripPopups(data.playerResponse);
         } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
 
-    // --- 4. TRAPS ---
+    // --- 4. DATA TRAPS ---
+    // Bẫy cả Playability Status để tránh bị Soft Block
+    const ensurePlayability = (data) => {
+        if (data.playabilityStatus) {
+            if (data.playabilityStatus.status === 'LOGIN_REQUIRED') return; // Không can thiệp login
+            if (data.playabilityStatus.status !== 'OK') {
+                console.log(`[Hunter] 🔓 Fixed Playability: ${data.playabilityStatus.status} -> OK`);
+                data.playabilityStatus.status = 'OK';
+                data.playabilityStatus.playableInEmbed = true;
+            }
+        }
+    };
+
     const trapVariable = (varName) => {
         let internalValue = window[varName];
         Object.defineProperty(window, varName, {
             get: function () { return internalValue; },
-            set: function (val) { internalValue = processYoutubeData(val); },
+            set: function (val) {
+                // Pre-process before assigning
+                if (val && val.playabilityStatus) ensurePlayability(val);
+                internalValue = processYoutubeData(val);
+            },
             configurable: true
         });
     };
+
     try {
         trapVariable('ytInitialPlayerResponse');
         trapVariable('ytInitialData');
@@ -151,7 +159,10 @@
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) return processYoutubeData(data);
+            if (data) {
+                processYoutubeData(data);
+                if (data.playabilityStatus) ensurePlayability(data); // Double check logic block
+            }
             return data;
         } catch (e) { return originalParse(text, reviver); }
     };
@@ -160,12 +171,18 @@
     Response.prototype.json = async function () {
         try {
             const data = await originalJson.call(this);
-            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) return processYoutubeData(data);
+            if (data) {
+                processYoutubeData(data); // Process in place
+                if (data.playabilityStatus) ensurePlayability(data);
+            }
             return data;
         } catch (e) { return originalJson.call(this); }
     };
 
-    if (window.ytInitialPlayerResponse) processYoutubeData(window.ytInitialPlayerResponse);
+    if (window.ytInitialPlayerResponse) {
+        processYoutubeData(window.ytInitialPlayerResponse);
+        ensurePlayability(window.ytInitialPlayerResponse);
+    }
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
