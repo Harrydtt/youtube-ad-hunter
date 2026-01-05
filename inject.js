@@ -1,6 +1,6 @@
-// inject.js - v29: The Universal Translator (Locale-Agnostic Fix)
+// inject.js - v30: The Link Hunter (URL-Based Wipe)
 (function () {
-    console.log('[Hunter] Stealth Engine v29: Universal Fix 🌐');
+    console.log('[Hunter] Stealth Engine v30: Link Hunter 🔗');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
@@ -15,7 +15,9 @@
             'actionCompanionAdRenderer',
             'statementBannerRenderer',
             'youTubePaymentPromoRenderer'
-        ]
+        ],
+        // The signature URL for Adblock warnings
+        block_url: 'support.google.com/youtube/answer/3037019'
     };
     let jsonCutEnabled = true;
 
@@ -47,7 +49,9 @@
         ytd-popup-container ytd-unity-gamification-renderer,
         ytd-popup-container ytd-mealbar-promo-renderer,
         .ytp-ad-overlay-container,
-        ytd-watch-flexy[player-unavailable] #player-unavailable
+        ytd-watch-flexy[player-unavailable] #player-unavailable,
+        /* Hide any toast containing the help link (generic heuristic if CSS allowed checking content, forcing hidden on suspects) */
+        tp-yt-paper-toast
         {
             display: none !important;
             visibility: hidden !important;
@@ -60,16 +64,16 @@
     `;
     (document.head || document.documentElement).appendChild(style);
 
-    // --- 3. DOM BOUNCER ---
+    // --- 3. DOM BOUNCER (URL HUNTER) ---
     const observer = new MutationObserver((mutations) => {
         if (!jsonCutEnabled) return;
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== 1) continue;
+
+                // 1. Tag Name/ID Check
                 const tag = node.tagName.toLowerCase();
                 const id = node.id;
-
-                // Mở rộng danh sách đen DOM
                 if (tag === 'ytd-enforcement-message-view-model' ||
                     tag === 'ytd-mealbar-promo-renderer' ||
                     id === 'mealbar-promo-renderer' ||
@@ -80,6 +84,16 @@
                     console.log(`%c[Bouncer] 🥊 Kicked out: ${tag}#${id}`, 'color: red; font-weight: bold;');
                     const video = document.querySelector('video');
                     if (video && video.paused) video.play();
+                    continue;
+                }
+
+                // 2. Deep Link Check (The Link Hunter)
+                // Check if this node or children contains the blocked URL
+                if (node.innerHTML.includes(CONFIG.block_url)) {
+                    node.remove();
+                    console.log(`%c[Bouncer] 🔗 Kicked out node containing Block URL`, 'color: red; font-weight: bold;');
+                    const video = document.querySelector('video');
+                    if (video && video.paused) video.play();
                 }
             }
         }
@@ -87,7 +101,7 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
     // --- 4. BEACON SYSTEM ---
-    const sendToOffscreen = (urls) => { /** Kept minimal for brevity, assume works */
+    const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
     };
@@ -129,7 +143,6 @@
         if (data.adPlacements) { fakeAdViewing(data.adPlacements); data.adPlacements = []; }
         if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
         if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
-
         if (data.playerResponse) {
             if (data.playerResponse.adPlacements) { fakeAdViewing(data.playerResponse.adPlacements); data.playerResponse.adPlacements = []; }
             if (data.playerResponse.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
@@ -138,65 +151,69 @@
     };
 
     const cleanPlayability = (data) => {
-        // Xử lý Playability Status & Error Screen (Quantum Fix)
         if (data.playabilityStatus) {
-            // 1. Luôn xóa errorScreen bất kể nội dung là gì (Tiếng Anh hay Tiếng Việt)
-            if (data.playabilityStatus.errorScreen) {
+            // Check link trong json luôn
+            const jsonStr = JSON.stringify(data.playabilityStatus);
+            if (jsonStr.includes(CONFIG.block_url)) {
+                // Nếu chứa link cấm -> Xóa và ép OK
+                data.playabilityStatus = { status: 'OK', playableInEmbed: true };
+                console.log('[Hunter] 🔗 Neutralized malicious playabilityStatus containing Block URL');
+            } else if (data.playabilityStatus.errorScreen) {
                 delete data.playabilityStatus.errorScreen;
-                console.log('[Hunter] 🚫 Removed errorScreen (Locale-Agnostic)');
             }
-            // 2. Ép status OK
+
             if (data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
                 data.playabilityStatus.status = 'OK';
                 data.playabilityStatus.playableInEmbed = true;
             }
         }
-
-        // Đệ quy cho playerResponse
-        if (data.playerResponse?.playabilityStatus) {
-            cleanPlayability(data.playerResponse);
-        }
+        if (data.playerResponse?.playabilityStatus) cleanPlayability(data.playerResponse);
     };
 
     const deMonetize = (data) => {
-        // 1. Tắt kiếm tiền
         if (data.videoDetails) data.videoDetails.isMonetized = false;
         if (data.playerResponse?.videoDetails) data.playerResponse.videoDetails.isMonetized = false;
-
-        // 2. Xóa Heartbeat & DAI
         if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
         if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
         if (data.playerConfig?.daiConfig) data.playerConfig.daiConfig = null;
         if (data.playerResponse?.playerConfig?.daiConfig) data.playerResponse.playerConfig.daiConfig = null;
-
-        // 3. Xóa AdBlockingInfo (Quan trọng)
         if (data.adBlockingInfo) delete data.adBlockingInfo;
         if (data.playerResponse?.adBlockingInfo) delete data.playerResponse.adBlockingInfo;
     };
 
     const stripPopups = (data) => {
-        const checkAndRemove = (obj) => {
-            if (!obj) return;
-            for (let key of CONFIG.popup_keys) {
-                if (obj[key]) {
+        // Recursive Check for Block URL in any renderer
+        const deepStrip = (obj) => {
+            if (!obj || typeof obj !== 'object') return;
+            for (let key in obj) {
+                if (CONFIG.popup_keys.includes(key) && obj[key]) {
                     delete obj[key];
-                    console.log(`%c[Hunter] 🚫 Blocked Popup: ${key}`, 'color: red;');
+                    console.log(`%c[Hunter] 🚫 Blocked Popup Key: ${key}`, 'color: red;');
+                } else if (typeof obj[key] === 'object') {
+                    // Check URL signature inside the object
+                    const str = JSON.stringify(obj[key]);
+                    if (str.includes(CONFIG.block_url)) {
+                        delete obj[key];
+                        console.log(`%c[Hunter] � Blocked Object containing Block URL`, 'color: red;');
+                    } else {
+                        deepStrip(obj[key]);
+                    }
                 }
             }
         };
 
-        if (data.auxiliaryUi?.messageRenderers) checkAndRemove(data.auxiliaryUi.messageRenderers);
-        if (data.playerResponse?.auxiliaryUi?.messageRenderers) checkAndRemove(data.playerResponse.auxiliaryUi.messageRenderers);
-        if (data.overlay) checkAndRemove(data.overlay);
+        if (data.auxiliaryUi) deepStrip(data.auxiliaryUi);
+        if (data.playerResponse?.auxiliaryUi) deepStrip(data.playerResponse.auxiliaryUi);
+        if (data.overlay) deepStrip(data.overlay);
     };
 
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
         try {
             nukeAds(data);
-            cleanPlayability(data); // New Logic: Universal Fix
+            cleanPlayability(data);
             deMonetize(data);
-            stripPopups(data);
+            stripPopups(data); // Enhanced Deep Strip
         } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
@@ -208,14 +225,13 @@
             Object.defineProperty(window, varName, {
                 get: function () { return internalValue; },
                 set: function (val) {
-                    if (val) val = processYoutubeData(val); // Xử lý xong mới set
+                    if (val) val = processYoutubeData(val);
                     internalValue = val;
                 },
                 configurable: true
             });
         } catch (e) { }
     };
-
     try { trapVariable('ytInitialPlayerResponse'); trapVariable('ytInitialData'); } catch (e) { }
 
     // --- 7. HOOKS ---
@@ -227,7 +243,6 @@
             return data;
         } catch (e) { return originalParse(text, reviver); }
     };
-
     const originalJson = Response.prototype.json;
     Response.prototype.json = async function () {
         try {
