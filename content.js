@@ -1,26 +1,43 @@
+// content.js - Project Phantom v15: Bridge + Logic 2
 (function () {
-    // --- CẤU HÌNH ---
-    let isHunterActive = true;
-    const BUTTON_ID = 'youtube-hunter-btn';
+    'use strict';
+
+    // --- CONSTANTS ---
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
-    const DECOY_ID = 'tPEE9ZwTmy0';
 
-    // --- TOGGLE FLAGS (Điều khiển từ Popup) ---
-    let jsonCutEnabled = true;  // Mặc định BẬT (JSON Lobotomy)
-    let logic2Enabled = true;   // Mặc định BẬT (Speed/Skip)
+    // --- SETTINGS (Điều khiển từ Popup) ---
+    let jsonCutEnabled = true;
+    let offscreenEnabled = true;
+    let logic2Enabled = true;
+    let staticAdsEnabled = false; // Mặc định TẮT
+    let isHunterActive = true;
 
-    // Gửi settings sang inject.js
-    const syncJsonCutToInject = () => {
-        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: jsonCutEnabled }, '*');
-    };
+    // --- STATE FLAGS ---
+    let currentVideoElement = null;
+    let logic2Logged = false;
 
     // Load settings từ storage
-    chrome.storage.local.get(['jsonCutEnabled', 'logic2Enabled'], (result) => {
+    chrome.storage.local.get([
+        'jsonCutEnabled',
+        'offscreenEnabled',
+        'logic2Enabled',
+        'staticAdsEnabled'
+    ], (result) => {
         jsonCutEnabled = result.jsonCutEnabled !== false;
+        offscreenEnabled = result.offscreenEnabled !== false;
         logic2Enabled = result.logic2Enabled !== false;
-        console.log(`[Hunter] Settings: JsonCut=${jsonCutEnabled}, Logic2=${logic2Enabled}`);
-        syncJsonCutToInject();
+        staticAdsEnabled = result.staticAdsEnabled === true; // Default OFF
+
+        console.log(`[Hunter] Settings: JSON=${jsonCutEnabled}, Offscreen=${offscreenEnabled}, Logic2=${logic2Enabled}, Static=${staticAdsEnabled}`);
+
+        // Sync settings to inject.js
+        syncSettingsToInject();
+
+        // Apply static ads CSS based on setting
+        if (staticAdsEnabled) {
+            updateAdHideCSS();
+        }
     });
 
     // Lắng nghe thay đổi settings REALTIME từ popup
@@ -29,140 +46,134 @@
             if (changes.jsonCutEnabled !== undefined) {
                 jsonCutEnabled = changes.jsonCutEnabled.newValue;
                 console.log(`[Hunter] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`);
-                syncJsonCutToInject();
+                syncSettingsToInject();
+            }
+            if (changes.offscreenEnabled !== undefined) {
+                offscreenEnabled = changes.offscreenEnabled.newValue;
+                console.log(`[Hunter] ⚙️ Offscreen: ${offscreenEnabled ? 'BẬT' : 'TẮT'}`);
             }
             if (changes.logic2Enabled !== undefined) {
                 logic2Enabled = changes.logic2Enabled.newValue;
                 console.log(`[Hunter] ⚙️ Logic 2: ${logic2Enabled ? 'BẬT' : 'TẮT'}`);
             }
+            if (changes.staticAdsEnabled !== undefined) {
+                staticAdsEnabled = changes.staticAdsEnabled.newValue;
+                console.log(`[Hunter] ⚙️ Static Ads: ${staticAdsEnabled ? 'BẬT' : 'TẮT'}`);
+                if (staticAdsEnabled) {
+                    updateAdHideCSS();
+                } else {
+                    removeAdHideCSS();
+                }
+            }
         }
     });
 
-    // --- BIẾN CỜ QUAN TRỌNG (STATE FLAGS) ---
-    let currentVideoElement = null;
-    let logic2Logged = false; // Cờ: Đã log Logic 2 chưa (tránh spam)
+    // Gửi settings sang inject.js
+    const syncSettingsToInject = () => {
+        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: jsonCutEnabled }, '*');
+    };
 
     // --- SELECTORS ---
     let SKIP_SELECTORS = [
         '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.ytp-ad-skip-button-slot',
         '.ytp-skip-ad-button', '.videoAdUiSkipButton', 'button.ytp-ad-skip-button',
-        'button[class*="skip"]', '[id="skip-button:"]', 'button[aria-label^="Skip ad"]',
-        'button[aria-label^="Skip Ad"]', 'button[aria-label^="Bỏ qua"]',
-        '.ytp-ad-skip-button-container button', '.ytp-ad-overlay-close-button'
+        '[class*="skip-button"]', '[class*="ytp-ad-skip"]'
     ];
 
-    let AD_HIDE_SELECTORS = [
-        'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer',
-        'ytd-in-feed-ad-layout-renderer', 'ytd-display-ad-renderer', '#player-ads',
-        '.ytp-ad-overlay-container', '.ytp-ad-text-overlay', 'ytd-promoted-sparkles-web-renderer',
-        'ytd-promoted-video-renderer', '#masthead-ad', 'ytd-companion-slot-renderer',
-        '.yt-mealbar-promo-renderer', 'ytd-mealbar-promo-renderer',
-        'ytd-reel-video-renderer .ytp-ad-overlay-container',
-        '.ytd-merch-shelf-renderer', 'ytd-merch-shelf-renderer'
+    let AD_SHOWING_SELECTORS = [
+        '.ad-showing', '.ytp-ad-player-overlay', '.ytp-ad-player-overlay-instream-info',
+        '.video-ads.ytp-ad-module', '.ytp-ad-text', '.ytp-ad-preview-container'
     ];
 
-    let SURVEY_SELECTORS = ['.ytp-ad-survey', '.ytp-ad-feedback-dialog-renderer', 'tp-yt-paper-dialog', '.ytd-popup-container', 'ytd-enforcement-message-view-model'];
+    let STATIC_AD_SELECTORS = [];
 
-    // --- HELPER FETCH SELECTORS ---
-    const updateSelectorsFromGithub = async () => {
-        try {
-            const lastUpdate = localStorage.getItem('hunter_selectors_updated');
-            const now = Date.now();
-            if (lastUpdate && (now - parseInt(lastUpdate)) < UPDATE_INTERVAL) {
-                const cached = localStorage.getItem('hunter_selectors');
-                if (cached) { applySelectors(JSON.parse(cached)); return; }
-            }
-            const response = await fetch(SELECTORS_URL);
-            if (response.ok) {
-                const data = await response.json();
-                applySelectors(data);
-                localStorage.setItem('hunter_selectors', JSON.stringify(data));
-                localStorage.setItem('hunter_selectors_updated', now.toString());
-            }
-        } catch (e) { console.log('[Hunter] Using default selectors'); }
-    };
-
-    const applySelectors = (data) => {
-        if (data.skipSelectors) SKIP_SELECTORS = data.skipSelectors;
-        if (data.adHideSelectors) AD_HIDE_SELECTORS = data.adHideSelectors;
-        if (data.surveySelectors) SURVEY_SELECTORS = data.surveySelectors;
-        updateAdHideCSS();
-    };
-
-    const updateAdHideCSS = () => {
-        const id = 'hunter-hide-ads';
-        const existing = document.getElementById(id);
-        if (existing) existing.remove();
-        const style = document.createElement('style');
-        style.id = id;
-        style.textContent = `${AD_HIDE_SELECTORS.join(', ')} { display: none !important; } .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-overlay-slot { display: none !important; }`;
-        document.head.appendChild(style);
-    };
-
-    const createHeaderButton = () => {
-        if (document.getElementById(BUTTON_ID)) return;
-        let container = document.querySelector('#masthead #end #buttons') || document.querySelector('#masthead #end') || document.querySelector('div#buttons.ytd-masthead');
-        if (!container) return;
-
-        const btn = document.createElement('div');
-        btn.id = BUTTON_ID;
-        Object.assign(btn.style, {
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            margin: '0 8px', height: '36px', borderRadius: '18px', backgroundColor: '#cc0000',
-            color: 'white', padding: '0 12px', fontSize: '12px', fontWeight: '700', zIndex: '9999'
-        });
-        btn.textContent = '🎯 Hunter: ON';
-        btn.onclick = () => {
-            isHunterActive = !isHunterActive;
-            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '⚪ OFF';
-            btn.style.backgroundColor = isHunterActive ? '#cc0000' : '#444';
-        };
-        container.insertBefore(btn, container.firstChild);
-    };
-
-    // ==========================================
-    // MODULE: INJECT SCRIPT
-    // ==========================================
+    // --- INJECT SCRIPT ---
     const injectScript = () => {
         if (document.getElementById('hunter-inject')) return;
         const script = document.createElement('script');
         script.id = 'hunter-inject';
         script.src = chrome.runtime.getURL('inject.js');
-        document.head.appendChild(script);
-        // Gửi settings sau khi inject xong
-        script.onload = () => {
-            syncJsonCutToInject();
-        };
+        (document.head || document.documentElement).appendChild(script);
+        script.onload = () => syncSettingsToInject();
     };
 
-    // ==========================================
-    // MODULE: UNIFIED HANDLER (BỘ NÃO TRUNG TÂM)
-    // ==========================================
+    // --- MESSAGE BRIDGE: Inject → Background ---
+    window.addEventListener('message', (e) => {
+        // Chuyển tiếp beacon URLs sang Background (để đẩy lên Offscreen)
+        if (e.data && e.data.type === 'HUNTER_SEND_TO_BACKGROUND') {
+            if (offscreenEnabled) {
+                chrome.runtime.sendMessage({
+                    type: 'HUNTER_BEACON_REQUEST',
+                    urls: e.data.urls
+                });
+            }
+        }
 
-    // Hàm này sẽ được gọi bởi TẤT CẢ các triggers (Event, Observer, Interval)
+        // Navigate event từ inject.js
+        if (e.data && e.data.type === 'HUNTER_NAVIGATE_URGENT') {
+            checkAndTriggerNavigate();
+        }
+    });
+
+    // --- AD DETECTION ---
+    const checkIfAdIsShowing = () => {
+        for (const sel of AD_SHOWING_SELECTORS) {
+            const el = document.querySelector(sel);
+            if (el) return true;
+        }
+        const player = document.querySelector('#movie_player');
+        if (player && player.classList.contains('ad-showing')) return true;
+        return false;
+    };
+
+    // --- AD CONTROL FUNCTIONS ---
+    const clickSkipButtons = () => {
+        for (const sel of SKIP_SELECTORS) {
+            const btn = document.querySelector(sel);
+            if (btn) {
+                try { btn.click(); return true; } catch (e) { }
+            }
+        }
+        return false;
+    };
+
+    const hideStaticAds = () => {
+        if (!staticAdsEnabled) return; // Chỉ chạy khi được bật
+        STATIC_AD_SELECTORS.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                if (el && el.style.display !== 'none') el.style.display = 'none';
+            });
+        });
+    };
+
+    const skipSurveys = () => {
+        const surveySelectors = ['.ytp-ad-survey', '.ytp-survey', '[id*="survey"]'];
+        surveySelectors.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) {
+                const skip = el.querySelector('button, [role="button"]');
+                if (skip) try { skip.click(); } catch (e) { }
+            }
+        });
+    };
+
+    // --- UNIFIED HANDLER ---
     const handleAdDetection = (source, video) => {
         if (!isHunterActive) return;
 
-        // 1. Kiểm tra xem có Ads không
         const isAd = checkIfAdIsShowing();
 
         if (isAd && video) {
-            // --- CÓ ADS ---
-            // JSON Cut đã chặn ở tầng data, nếu vẫn còn ads thì dùng Logic 2
-
             if (logic2Enabled) {
-                // DÙNG SPEED/SKIP (Fallback khi JSON Cut miss)
                 if (!logic2Logged) {
                     console.log(`%c[Hunter] ⚡ Logic 2 tiếp quản (từ ${source})`, 'color: orange;');
                     logic2Logged = true;
                 }
                 killActiveAd(video);
             } else {
-                // Logic 2 TẮT -> Chỉ im lặng mute
                 if (!video.muted) video.muted = true;
             }
         } else {
-            // --- KHÔNG CÓ ADS ---
             if (video) {
                 if (video.muted) video.muted = false;
                 if (video.playbackRate > 1) video.playbackRate = 1;
@@ -171,13 +182,12 @@
             if (controls && controls.style.opacity === '0') controls.style.opacity = 1;
         }
 
-        hideStaticAds();
+        if (staticAdsEnabled) hideStaticAds();
         skipSurveys();
     };
 
-    // Logic cũ (Speedup/Skip) giờ chỉ là hàm phụ trợ
     const killActiveAd = (video) => {
-        const skipped = clickSkipButtons();
+        clickSkipButtons();
         if (!video.muted) video.muted = true;
         if (video.playbackRate < 16) video.playbackRate = 16;
         if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.5) {
@@ -185,121 +195,117 @@
         }
     };
 
-    // ==========================================
-    // TRIGGERS (CÁC GIÁC QUAN)
-    // ==========================================
+    // --- EVENT LISTENERS ---
+    const onMetadataLoaded = (e) => handleAdDetection('MetadataEvent', e.target);
 
-    // 1. Event Listener: Loaded Metadata (Cực nhanh)
-    const onMetadataLoaded = (e) => {
-        handleAdDetection('MetadataEvent', e.target);
+    const setupVideoListeners = (video) => {
+        if (video.dataset.hunterBound) return;
+        video.dataset.hunterBound = 'true';
+
+        video.addEventListener('loadedmetadata', onMetadataLoaded);
+        video.addEventListener('play', (e) => handleAdDetection('PlayEvent', e.target));
+        video.addEventListener('timeupdate', (e) => handleAdDetection('TimeUpdate', e.target));
     };
 
-    // 2. Interval Loop (Quét dọn những gì Event bỏ sót)
-    const runHunterLoop = () => {
-        createHeaderButton();
-        const video = document.querySelector('video');
-
-        // Quản lý Event Listeners
-        if (video && video !== currentVideoElement) {
-            if (currentVideoElement) {
-                ['loadedmetadata', 'durationchange', 'play', 'playing'].forEach(evt => {
-                    currentVideoElement.removeEventListener(evt, onMetadataLoaded);
-                });
-            }
-            currentVideoElement = video;
-            ['loadedmetadata', 'durationchange', 'play', 'playing'].forEach(evt => {
-                video.addEventListener(evt, onMetadataLoaded);
-            });
-        }
-
-        handleAdDetection('IntervalLoop', video);
-    };
-
-    // 3. Mutation Observer (Bắt thay đổi class DOM)
+    // --- MUTATION OBSERVER ---
     const observer = new MutationObserver((mutations) => {
-        if (!isHunterActive) return;
         for (const mutation of mutations) {
-            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'src')) {
-                const video = document.querySelector('video');
-                handleAdDetection('MutationObserver', video);
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const target = mutation.target;
+                if (target.classList && target.classList.contains('ad-showing')) {
+                    const video = document.querySelector('video');
+                    if (video) handleAdDetection('MutationObserver', video);
+                }
             }
         }
     });
 
-    // ==========================================
-    // NAVIGATE HANDLER
-    // ==========================================
+    // --- MAIN LOOP ---
+    const runHunterLoop = () => {
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => {
+            setupVideoListeners(video);
+            currentVideoElement = video;
+            handleAdDetection('IntervalLoop', video);
+        });
+    };
+
+    // --- NAVIGATE HANDLER ---
     let lastVideoId = null;
 
     const onNavigateStart = () => {
-        console.log('%c[Hunter] 🚀 Chuyển bài -> JSON Cut sẽ chặn ads từ gốc', 'color: yellow');
-        logic2Logged = false; // Reset log flag cho video mới
+        console.log('%c[Hunter] 🚀 Chuyển bài', 'color: yellow');
+        logic2Logged = false;
     };
 
     const checkAndTriggerNavigate = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const currentVideoId = urlParams.get('v');
-
         if (currentVideoId && currentVideoId !== lastVideoId) {
             lastVideoId = currentVideoId;
             onNavigateStart();
         }
     };
 
-    // ==========================================
-    // HELPER FUNCTIONS
-    // ==========================================
-    const checkIfAdIsShowing = () => {
-        const adElement = document.querySelector('.ad-showing, .ad-interrupting');
-        const skipBtn = document.querySelector('.ytp-ad-skip-button');
-        return !!(adElement || skipBtn);
-    };
+    // --- CSS INJECTION ---
+    const updateAdHideCSS = () => {
+        if (!staticAdsEnabled) return;
 
-    const clickSkipButtons = () => {
-        let clicked = false;
-        SKIP_SELECTORS.forEach(selector => {
-            document.querySelectorAll(selector).forEach(btn => {
-                if (btn && btn.offsetParent !== null) {
-                    btn.click();
-                    clicked = true;
-                }
-            });
-        });
-        return clicked;
-    };
-
-    const hideStaticAds = () => {
-        AD_HIDE_SELECTORS.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
-        });
-    };
-
-    const skipSurveys = () => {
-        SURVEY_SELECTORS.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => {
-                const close = el.querySelector('button');
-                if (close) close.click(); else el.remove();
-            });
-        });
-    };
-
-    // ==========================================
-    // INIT
-    // ==========================================
-    updateSelectorsFromGithub();
-    updateAdHideCSS();
-    injectScript();
-
-    window.addEventListener('message', (e) => {
-        if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
-            checkAndTriggerNavigate();
+        let style = document.getElementById('hunter-style');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'hunter-style';
+            document.head.appendChild(style);
         }
-    });
+
+        const selectors = STATIC_AD_SELECTORS.length > 0
+            ? STATIC_AD_SELECTORS
+            : [
+                'ytd-ad-slot-renderer',
+                'ytd-banner-promo-renderer',
+                'ytd-statement-banner-renderer',
+                'ytd-in-feed-ad-layout-renderer',
+                '.ytd-rich-item-renderer:has(ytd-ad-slot-renderer)',
+                '.yt-mealbar-promo-renderer',
+                '#masthead-ad',
+                '#player-ads'
+            ];
+
+        style.textContent = selectors.map(s => `${s} { display: none !important; }`).join('\n');
+    };
+
+    const removeAdHideCSS = () => {
+        const style = document.getElementById('hunter-style');
+        if (style) style.remove();
+    };
+
+    // --- SELECTOR UPDATE ---
+    const updateSelectorsFromGithub = async () => {
+        try {
+            const lastUpdate = localStorage.getItem('hunter_selectors_time');
+            if (lastUpdate && Date.now() - parseInt(lastUpdate) < UPDATE_INTERVAL) return;
+
+            const response = await fetch(SELECTORS_URL + '?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                if (data.skip) SKIP_SELECTORS = data.skip;
+                if (data.adShowing) AD_SHOWING_SELECTORS = data.adShowing;
+                if (data.static) STATIC_AD_SELECTORS = data.static;
+
+                localStorage.setItem('hunter_selectors', JSON.stringify(data));
+                localStorage.setItem('hunter_selectors_time', Date.now().toString());
+                console.log('[Hunter] Selectors updated from GitHub');
+            }
+        } catch (e) { }
+    };
+
+    // --- INIT ---
+    updateSelectorsFromGithub();
+    injectScript();
 
     setTimeout(() => { checkAndTriggerNavigate(); }, 500);
     window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
 
-    // Vòng lặp chính chạy song song với Event
     setInterval(runHunterLoop, 50);
 
     const waitForPlayer = setInterval(() => {
@@ -310,5 +316,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v13: Direct Intercept + Fallback 🎯⚡');
+    console.log('[Hunter] v15: Project Phantom Active 👻⚡');
 })();

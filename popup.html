@@ -11,7 +11,7 @@
     }
 
     body {
-      width: 280px;
+      width: 300px;
       padding: 16px;
       font-family: 'Segoe UI', Tahoma, sans-serif;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -24,7 +24,7 @@
     }
 
     .header h1 {
-      font-size: 18px;
+      font-size: 16px;
       margin-bottom: 4px;
     }
 
@@ -38,9 +38,13 @@
       align-items: center;
       justify-content: space-between;
       background: rgba(255, 255, 255, 0.05);
-      padding: 12px 14px;
-      border-radius: 10px;
-      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .toggle-row.disabled {
+      opacity: 0.6;
     }
 
     .toggle-label {
@@ -49,7 +53,7 @@
     }
 
     .toggle-label .name {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
     }
 
@@ -59,11 +63,10 @@
       margin-top: 2px;
     }
 
-    /* Toggle Switch */
     .switch {
       position: relative;
-      width: 50px;
-      height: 26px;
+      width: 44px;
+      height: 24px;
     }
 
     .switch input {
@@ -81,14 +84,14 @@
       bottom: 0;
       background-color: #444;
       transition: 0.3s;
-      border-radius: 26px;
+      border-radius: 24px;
     }
 
     .slider:before {
       position: absolute;
       content: "";
-      height: 20px;
-      width: 20px;
+      height: 18px;
+      width: 18px;
       left: 3px;
       bottom: 3px;
       background-color: white;
@@ -101,14 +104,22 @@
     }
 
     input:checked+.slider:before {
-      transform: translateX(24px);
+      transform: translateX(20px);
+    }
+
+    .section-title {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      margin: 12px 0 6px 4px;
+      letter-spacing: 1px;
     }
 
     .footer {
       text-align: center;
       margin-top: 12px;
-      font-size: 10px;
-      color: #666;
+      font-size: 9px;
+      color: #555;
     }
   </style>
 </head>
@@ -116,13 +127,15 @@
 <body>
   <div class="header">
     <h1>🎯 YouTube Ad Hunter</h1>
-    <div class="version">v9.0 - JSON Cut + Fallback</div>
+    <div class="version">v15.0 - Project Phantom</div>
   </div>
+
+  <div class="section-title">Video Ads</div>
 
   <div class="toggle-row">
     <div class="toggle-label">
-      <span class="name">🔪 JSON Cut (Lobotomy)</span>
-      <span class="desc">Cắt quảng cáo từ gốc dữ liệu</span>
+      <span class="name">🔪 JSON Cut</span>
+      <span class="desc">Cắt video ads từ gốc dữ liệu</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-jsoncut" checked>
@@ -132,8 +145,19 @@
 
   <div class="toggle-row">
     <div class="toggle-label">
+      <span class="name">👻 Offscreen Beacon</span>
+      <span class="desc">Fake view qua hidden iframe</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="toggle-offscreen" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div class="toggle-label">
       <span class="name">⚡ Logic 2 (Speed/Skip)</span>
-      <span class="desc">Tua nhanh x16 + Click Skip</span>
+      <span class="desc">Fallback tua x16 + click skip</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-logic2" checked>
@@ -141,8 +165,21 @@
     </label>
   </div>
 
+  <div class="section-title">Static Ads</div>
+
+  <div class="toggle-row">
+    <div class="toggle-label">
+      <span class="name">🚫 Block Static Ads</span>
+      <span class="desc">Ẩn banner, sidebar (rủi ro detect)</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="toggle-static">
+      <span class="slider"></span>
+    </label>
+  </div>
+
   <div class="footer">
-    Toggle có hiệu lực ngay lập tức
+    Thay đổi có hiệu lực ngay lập tức
   </div>
 
   <script src="popup.js"></script>

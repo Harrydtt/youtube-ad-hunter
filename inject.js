@@ -1,6 +1,6 @@
-// inject.js - Direct Variable Interception v13
+// inject.js - Project Phantom v15: Offscreen Reality
 (function () {
-    console.log('[Hunter] Stealth Engine v13: Direct Intercept 🎯');
+    console.log('[Hunter] Stealth Engine v15: Offscreen Reality 👻');
 
     // --- MONKEY PATCH HISTORY ---
     const originalPushState = history.pushState;
@@ -17,8 +17,9 @@
         window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     });
 
-    // --- TOGGLE CONTROL ---
+    // --- SETTINGS (Sẽ được sync từ content.js) ---
     let jsonCutEnabled = true;
+
     window.addEventListener('message', function (e) {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
@@ -26,191 +27,143 @@
         }
     });
 
-    // =============================================
-    // 🖼️ PIXEL BEACON
-    // =============================================
-    const fireBeacon = (url) => {
-        if (!url || !url.startsWith('http')) return;
-        const img = new Image();
-        img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    // --- CONFIG ---
+    const TRACKING_KEYS = [
+        'impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint',
+        'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'
+    ];
+
+    // --- GỬI TRACKING URLs RA CONTENT.JS (để đẩy lên Offscreen) ---
+    const sendToOffscreen = (urls) => {
+        if (!urls || urls.length === 0) return;
+        window.postMessage({
+            type: 'HUNTER_SEND_TO_BACKGROUND',
+            urls: urls
+        }, '*');
     };
 
-    const fakeView = (adData) => {
-        if (!adData) return;
-        try {
-            const findUrls = (obj) => {
-                let urls = [];
-                if (!obj) return urls;
-                if (typeof obj === 'object') {
-                    for (let key in obj) {
-                        if (['impressionEndpoints', 'adImpressionUrl'].includes(key)) {
-                            const eps = obj[key];
-                            if (Array.isArray(eps)) eps.forEach(e => urls.push(e.baseUrl || e));
-                            else if (typeof eps === 'string') urls.push(eps);
-                        } else {
-                            urls = urls.concat(findUrls(obj[key]));
+    // --- THU THẬP TRACKING URLs ---
+    const collectTrackingUrls = (adData) => {
+        if (!adData) return [];
+
+        const findUrls = (obj) => {
+            let urls = [];
+            if (!obj) return urls;
+            if (typeof obj === 'object') {
+                for (let key in obj) {
+                    if (TRACKING_KEYS.includes(key)) {
+                        const val = obj[key];
+                        if (Array.isArray(val)) {
+                            val.forEach(v => {
+                                if (v.baseUrl) urls.push(v.baseUrl);
+                                else if (typeof v === 'string') urls.push(v);
+                            });
+                        } else if (typeof val === 'string') {
+                            urls.push(val);
                         }
+                    } else {
+                        urls = urls.concat(findUrls(obj[key]));
                     }
                 }
-                return urls;
-            };
-            const urls = findUrls(adData);
-            urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 50));
-            if (urls.length > 0) console.log(`%c[Beacon] 📡 Fake ${urls.length} impressions`, 'color: #00aaff');
-        } catch (e) { }
+            }
+            return urls;
+        };
+
+        return findUrls(adData);
     };
 
-    // =============================================
-    // 🔪 PROCESS AD DATA (Cắt Preroll, giữ Midroll)
-    // =============================================
+    // --- XỬ LÝ AD PLACEMENTS (Cắt Preroll, giữ Midroll) ---
     const processAdPlacements = (placements) => {
-        if (!Array.isArray(placements) || placements.length === 0) return placements;
+        if (!Array.isArray(placements)) return placements;
 
-        console.log(`%c[Debug] Processing ${placements.length} placements...`, 'color: yellow');
-
-        return placements.filter((p, i) => {
+        return placements.filter((p, index) => {
             const renderer = p.adPlacementRenderer;
             const config = renderer?.config?.adPlacementConfig;
             const kind = config?.kind || '';
-            const timeOffset = config?.adTimeOffset?.offsetStartMilliseconds || renderer?.timeOffsetMilliseconds || 0;
+            const timeOffset = config?.adTimeOffset?.offsetStartMilliseconds
+                || renderer?.timeOffsetMilliseconds || 0;
 
-            console.log(`%c[Debug] Ad #${i}: kind="${kind}", offset=${timeOffset}`, 'color: cyan');
-
-            // Nhận diện Preroll: offset = 0 hoặc kind chứa PREROLL
+            // Nhận diện Preroll
             const isPreroll = timeOffset === 0 || timeOffset === '0' ||
-                kind.includes('PREROLL') ||
-                (i === 0 && !kind); // Ad đầu tiên không có kind
+                kind.includes('PREROLL');
+
+            // Thu thập tracking URLs trước khi xử lý
+            const urls = collectTrackingUrls(p);
+            if (urls.length > 0) {
+                console.log(`%c[Hunter] 📡 Thu thập ${urls.length} tracking URLs`, 'color: cyan');
+                sendToOffscreen(urls);
+            }
 
             if (isPreroll) {
                 console.log('%c[Lobotomy] 🔪 Cắt PREROLL', 'color: red; font-weight: bold');
-                fakeView(p);
-                return false;
+                return false; // Xóa
             }
 
-            console.log('%c[Lobotomy] ⏩ Giữ MIDROLL', 'color: orange');
-            return true;
+            console.log('%c[Lobotomy] ⏩ Giữ MIDROLL (Logic 2 sẽ xử lý)', 'color: orange');
+            return true; // Giữ
         });
     };
 
-    // =============================================
-    // 🎯 DIRECT VARIABLE INTERCEPTION
-    // =============================================
+    // --- XỬ LÝ DATA ---
+    const processYoutubeData = (data) => {
+        if (!jsonCutEnabled || !data) return data;
 
-    // Xử lý ytInitialPlayerResponse có sẵn
-    const processInitial = () => {
-        if (!jsonCutEnabled) return;
-
-        if (window.ytInitialPlayerResponse) {
-            console.log('%c[Hunter] 🎯 Tìm thấy ytInitialPlayerResponse!', 'color: lime; font-size: 14px');
-
-            if (window.ytInitialPlayerResponse.adPlacements) {
-                console.log('%c[Hunter] Có adPlacements!', 'color: lime', window.ytInitialPlayerResponse.adPlacements);
-                const original = window.ytInitialPlayerResponse.adPlacements;
-                window.ytInitialPlayerResponse.adPlacements = processAdPlacements(original);
-            }
-
-            if (window.ytInitialPlayerResponse.playerAds) {
-                fakeView(window.ytInitialPlayerResponse.playerAds);
-                window.ytInitialPlayerResponse.playerAds = [];
-            }
-        }
-    };
-
-    // Chạy ngay và nhiều lần để bắt kịp timing
-    processInitial();
-    setTimeout(processInitial, 0);
-    setTimeout(processInitial, 100);
-    setTimeout(processInitial, 500);
-    setTimeout(processInitial, 1000);
-
-    // =============================================
-    // 🪝 DEFINE PROPERTY TRAP (Bẫy khi YouTube set biến)
-    // =============================================
-
-    // Bẫy cho ytInitialPlayerResponse
-    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
-
-    try {
-        Object.defineProperty(window, 'ytInitialPlayerResponse', {
-            get: function () {
-                return _ytInitialPlayerResponse;
-            },
-            set: function (val) {
-                console.log('%c[Trap] 🪝 ytInitialPlayerResponse được set!', 'color: magenta; font-size: 14px');
-
-                if (jsonCutEnabled && val) {
-                    if (val.adPlacements) {
-                        console.log('%c[Trap] Có adPlacements, đang xử lý...', 'color: magenta');
-                        val.adPlacements = processAdPlacements(val.adPlacements);
-                    }
-                    if (val.playerAds) {
-                        fakeView(val.playerAds);
-                        val.playerAds = [];
-                    }
-                }
-
-                _ytInitialPlayerResponse = val;
-            },
-            configurable: true
-        });
-        console.log('[Hunter] Trap ytInitialPlayerResponse: OK ✅');
-    } catch (e) {
-        console.log('[Hunter] Trap failed:', e);
-    }
-
-    // =============================================
-    // 🔪 HOOK JSON.PARSE (Backup cho API calls)
-    // =============================================
-    const originalParse = JSON.parse;
-
-    JSON.parse = function (text, reviver) {
         try {
-            const data = originalParse(text, reviver);
-
-            if (!jsonCutEnabled || !data) return data;
-
             if (data.adPlacements) {
-                console.log('%c[JSON] Tìm thấy adPlacements trong JSON.parse!', 'color: lime');
+                console.log('%c[Hunter] 🎯 Tìm thấy adPlacements!', 'color: lime');
                 data.adPlacements = processAdPlacements(data.adPlacements);
             }
 
             if (data.playerAds) {
-                fakeView(data.playerAds);
-                data.playerAds = [];
+                const urls = collectTrackingUrls(data.playerAds);
+                sendToOffscreen(urls);
+                data.playerAds = []; // Xóa banner ads
             }
+        } catch (e) {
+            console.warn('[Hunter] Process error:', e);
+        }
 
-            return data;
+        return data;
+    };
+
+    // --- HOOK JSON.PARSE ---
+    const originalParse = JSON.parse;
+    JSON.parse = function (text, reviver) {
+        try {
+            return processYoutubeData(originalParse(text, reviver));
         } catch (e) {
             return originalParse(text, reviver);
         }
     };
 
-    // =============================================
-    // 🔪 HOOK FETCH (Backup cho API calls)
-    // =============================================
+    // --- HOOK FETCH ---
     const originalJson = Response.prototype.json;
-
     Response.prototype.json = async function () {
         try {
-            const data = await originalJson.call(this);
-
-            if (!jsonCutEnabled || !data) return data;
-
-            if (data.adPlacements) {
-                console.log('%c[Fetch] Tìm thấy adPlacements trong Fetch!', 'color: lime');
-                data.adPlacements = processAdPlacements(data.adPlacements);
-            }
-
-            if (data.playerAds) {
-                fakeView(data.playerAds);
-                data.playerAds = [];
-            }
-
-            return data;
+            return processYoutubeData(await originalJson.call(this));
         } catch (e) {
             return originalJson.call(this);
         }
     };
 
-    console.log('[Hunter] v13: Direct Intercept Active ✅');
+    // --- TRAP ytInitialPlayerResponse ---
+    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
+
+    try {
+        Object.defineProperty(window, 'ytInitialPlayerResponse', {
+            get: function () { return _ytInitialPlayerResponse; },
+            set: function (val) {
+                console.log('%c[Trap] 🪝 ytInitialPlayerResponse set!', 'color: magenta');
+                _ytInitialPlayerResponse = processYoutubeData(val);
+            },
+            configurable: true
+        });
+    } catch (e) { }
+
+    // Cleanup existing
+    if (window.ytInitialPlayerResponse) {
+        processYoutubeData(window.ytInitialPlayerResponse);
+    }
+
+    console.log('[Hunter] v15: Offscreen Reality Active ✅');
 })();

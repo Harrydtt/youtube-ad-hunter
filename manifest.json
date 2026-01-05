@@ -1,13 +1,18 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Hunter",
-  "version": "1.0.0",
-  "description": "Tự động skip quảng cáo YouTube nhanh chóng. Bật/Tắt dễ dàng với nút Hunter trên header.",
-  "author": "Harry",
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+  "version": "15.0",
+  "description": "Chặn quảng cáo YouTube bằng JSON Pruning + Offscreen Beaconing",
+  "permissions": [
+    "scripting",
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
@@ -17,12 +22,6 @@
       "128": "icons/icon128.png"
     }
   },
-  "permissions": [
-    "storage"
-  ],
-  "host_permissions": [
-    "*://*.youtube.com/*"
-  ],
   "content_scripts": [
     {
       "matches": [
@@ -31,7 +30,7 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
@@ -43,5 +42,10 @@
         "*://*.youtube.com/*"
       ]
     }
-  ]
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }
