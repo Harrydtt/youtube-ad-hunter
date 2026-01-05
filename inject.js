@@ -1,17 +1,16 @@
-// inject.js - v19: The Time Stopper (Trap Restored)
+// inject.js - v21: The Popup Killer (Anti-Popup + Data Traps)
 (function () {
-    console.log('[Hunter] Stealth Engine v20: Main World Injection 💉');
+    console.log('[Hunter] Stealth Engine v21: The Popup Killer �️');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        monetization_flags: ['isMonetized', 'isCrawlable', 'showAds', 'allowBelowThePlayerCompanion'],
-        preroll_indicators: ['PREROLL', '0', 0]
+        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer'] // Đám Popup khó chịu
     };
     let jsonCutEnabled = true;
 
-    // Load Config động (Backup)
+    // Load Config (Backup)
     try {
         const configEl = document.getElementById('hunter-config-data');
         if (configEl) {
@@ -68,37 +67,39 @@
         } catch (e) { }
     };
 
-    // --- 3. DE-MONETIZATION LOGIC ---
-    const stripMonetization = (data) => {
-        if (data.videoDetails) {
-            data.videoDetails.isMonetized = false;
-            if (data.videoDetails.allowRatings === false) data.videoDetails.allowRatings = true;
+    // --- 3. CORE LOGIC ---
+
+    // A. Xóa Popup (Anti-Adblock Dialog)
+    // Thay vì lừa Player video không kiếm tiền (bị lộ), ta tìm chính cái Popup đó và xóa nó đi.
+    const stripPopups = (data) => {
+        if (data.auxiliaryUi && data.auxiliaryUi.messageRenderers) {
+            const renderers = data.auxiliaryUi.messageRenderers;
+            for (let key of CONFIG.popup_keys) {
+                if (renderers[key]) {
+                    delete renderers[key];
+                    console.log(`%c[Hunter] 🚫 Removed Popup: ${key}`, 'color: red; font-weight: bold;');
+                }
+            }
         }
-        if (data.playerConfig && data.playerConfig.daiConfig) {
-            data.playerConfig.daiConfig = null;
-        }
-        if (data.adBreakHeartbeatParams) {
-            delete data.adBreakHeartbeatParams;
-        }
-        if (data.playabilityStatus && data.playabilityStatus.status === 'OK_WITH_ADS') {
-            data.playabilityStatus.status = 'OK';
+        // Xóa Upsell trong overlay
+        if (data.overlay && data.overlay.upsellDialogRenderer) {
+            delete data.overlay.upsellDialogRenderer;
         }
     };
 
-    // --- 4. CORE PROCESSOR ---
+    // B. Xử lý Dữ liệu
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
 
         try {
-            // A. Fake View
+            // 1. Fake View
             const adClone = {};
             if (data.adPlacements) adClone.adPlacements = data.adPlacements;
             if (data.playerResponse?.adPlacements) adClone.nestedAds = data.playerResponse.adPlacements;
             if (data.playerAds) adClone.playerAds = data.playerAds;
-
             if (Object.keys(adClone).length > 0) fakeAdViewing(adClone);
 
-            // B. Xóa sạch Ads
+            // 2. Xóa sạch Ads (Không De-Monetize nữa, chỉ xóa Ads)
             if (data.adPlacements) data.adPlacements = [];
             if (data.playerAds) data.playerAds = [];
             if (data.adSlots) data.adSlots = [];
@@ -107,33 +108,41 @@
                 if (data.playerResponse.playerAds) data.playerResponse.playerAds = [];
             }
 
-            // C. De-Monetize
-            stripMonetization(data);
+            // 3. Xóa Popup thực thi
+            stripPopups(data);
+            if (data.playerResponse) stripPopups(data.playerResponse);
 
         } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
 
-    // --- 5. THE TRAP (Object.defineProperty) - CRITICAL RESTORATION ---
-    // Bắt dính biến ngay khi Player vừa mới định đọc nó
-    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
-    Object.defineProperty(window, 'ytInitialPlayerResponse', {
-        get: function () {
-            return _ytInitialPlayerResponse;
-        },
-        set: function (val) {
-            _ytInitialPlayerResponse = processYoutubeData(val);
-            console.log('[Hunter] 🪝 Trapped ytInitialPlayerResponse');
-        },
-        configurable: true
-    });
+    // --- 4. DOUBLE TRAP (ytInitialPlayerResponse + ytInitialData) ---
+    // Trap cả 2 biến global quan trọng nhất
+    const trapVariable = (varName) => {
+        let internalValue = window[varName];
+        Object.defineProperty(window, varName, {
+            get: function () { return internalValue; },
+            set: function (val) {
+                console.log(`[Hunter] 🪝 Trapped ${varName}`);
+                internalValue = processYoutubeData(val);
+            },
+            configurable: true
+        });
+    };
 
-    // --- 6. STANDARD HOOKS ---
+    try {
+        trapVariable('ytInitialPlayerResponse');
+        trapVariable('ytInitialData'); // Thêm cái này để bắt Overlay Ads
+    } catch (e) {
+        console.log('[Hunter] Trap failed (Conflict):', e);
+    }
+
+    // --- 5. STANDARD HOOKS ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            if (data && (data.adPlacements || data.videoDetails || data.playerResponse)) {
+            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) {
                 return processYoutubeData(data);
             }
             return data;
@@ -144,18 +153,16 @@
     Response.prototype.json = async function () {
         try {
             const data = await originalJson.call(this);
-            if (data && (data.adPlacements || data.videoDetails || data.playerResponse)) {
+            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) {
                 return processYoutubeData(data);
             }
             return data;
         } catch (e) { return originalJson.call(this); }
     };
 
-    // --- 7. CLEANUP INITIAL ---
-    if (window.ytInitialPlayerResponse) {
-        processYoutubeData(window.ytInitialPlayerResponse);
-        console.log('[Hunter] Processed existing ytInitialPlayerResponse');
-    }
+    // --- 6. CLEANUP INITIAL ---
+    if (window.ytInitialPlayerResponse) processYoutubeData(window.ytInitialPlayerResponse);
+    if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
     // History Patch
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
