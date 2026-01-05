@@ -1,6 +1,6 @@
-// content.js - v31.3: Respect All Settings
+// content.js - v31.5: Fixed Skip Button Logic
 (function () {
-    console.log('[Hunter] Initializing v31.3... 👻');
+    console.log('[Hunter] Initializing v31.5... 👻');
 
     // --- STATE (All settings, loaded from storage) ---
     let settings = {
@@ -10,19 +10,6 @@
         logic2Enabled: true,     // Speed/Skip fallback
         staticAdsEnabled: false  // Block static ads (default OFF)
     };
-
-    let SKIP_SELECTORS = [
-        '.video-ads.ytp-ad-module',
-        '.ytp-ad-player-overlay',
-        '.ytp-ad-image-overlay',
-        '.ytp-ad-skip-button',
-        '.ytp-ad-overlay-container',
-        'ytd-promoted-sparkles-web-renderer',
-        'ytd-display-ad-renderer',
-        'ytd-compact-promoted-video-renderer',
-        'ytd-miniplayer-toast',
-        'ytd-mealbar-promo-renderer'
-    ];
 
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
@@ -88,30 +75,30 @@
     };
 
     // --- CORE LOGIC (Respects Settings) ---
+    // Reference: Working logic from "no offscreen" version
+    const SKIP_SELECTORS = [
+        '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.ytp-ad-skip-button-slot',
+        '.ytp-skip-ad-button', '.videoAdUiSkipButton', 'button.ytp-ad-skip-button',
+        'button[class*="skip"]', '[id="skip-button:"]', 'button[aria-label^="Skip ad"]',
+        'button[aria-label^="Skip Ad"]', 'button[aria-label^="Bỏ qua"]',
+        '.ytp-ad-skip-button-container button', '.ytp-ad-overlay-close-button'
+    ];
+
     const clickSkipButton = () => {
         if (!settings.logic2Enabled) return false;
 
-        // Try all possible skip button selectors (no visibility check - just click if exists)
-        const selectors = [
-            '.ytp-ad-skip-button',
-            '.ytp-ad-skip-button-modern',
-            '.ytp-skip-ad-button',
-            '.videoAdUiSkipButton',
-            'button.ytp-ad-skip-button',
-            '.ytp-ad-skip-button-container button'
-        ];
-
-        for (const sel of selectors) {
-            try {
-                const btn = document.querySelector(sel);
-                if (btn) {
+        let clicked = false;
+        SKIP_SELECTORS.forEach(selector => {
+            document.querySelectorAll(selector).forEach(btn => {
+                if (btn && btn.offsetParent !== null) {
                     btn.click();
-                    console.log('[Hunter] ⏩ Skipped Ad');
-                    return true;
+                    clicked = true;
                 }
-            } catch (e) { /* ignore */ }
-        }
-        return false;
+            });
+        });
+
+        if (clicked) console.log('[Hunter] ⏩ Skipped Ad');
+        return clicked;
     };
 
     const fastForwardAd = () => {
@@ -264,5 +251,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31.4: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v31.5: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
