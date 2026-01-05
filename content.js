@@ -11,7 +11,6 @@
     let isAdProcessing = false;
     let decoyTriggered = false;
     let logic2Logged = false; // Log Logic 2 1 lần mỗi ads
-    let isDecoyScanning = false; // Flag: Đang trong giai đoạn scan của Tier 1
 
     // --- SELECTORS MẶC ĐỊNH ---
     let SKIP_SELECTORS = [
@@ -33,8 +32,6 @@
     ];
 
     let SURVEY_SELECTORS = ['.ytp-ad-survey', '.ytp-ad-feedback-dialog-renderer', 'tp-yt-paper-dialog', '.ytd-popup-container', 'ytd-enforcement-message-view-model'];
-
-    let adShowingSelectors = ['.ad-showing', '.ad-interrupting'];
 
     // --- HÀM CẬP NHẬT SELECTORS ---
     const updateSelectorsFromGithub = async () => {
@@ -59,7 +56,6 @@
         if (data.skipSelectors) SKIP_SELECTORS = data.skipSelectors;
         if (data.adHideSelectors) AD_HIDE_SELECTORS = data.adHideSelectors;
         if (data.surveySelectors) SURVEY_SELECTORS = data.surveySelectors;
-        if (data.adShowingSelectors) adShowingSelectors = data.adShowingSelectors;
         updateAdHideCSS();
     };
 
@@ -116,14 +112,6 @@
         console.log(`%c[Decoy] 🚨 Kích hoạt!`, 'color: red; font-weight: bold;');
         window.postMessage({ type: 'HUNTER_DECOY', decoyId: DECOY_ID, targetId: targetId }, '*');
         decoyTriggered = true;
-
-        // Failsafe: Nếu sau 3s mà không thấy phản hồi (Decoy die) thì mở khóa cho Tier 2 xử lý
-        setTimeout(() => {
-            if (isDecoyScanning) {
-                console.log('%c[Decoy] ⚠️ Timeout chờ phản hồi -> Mở khóa cho Logic 2', 'color: orange');
-                isDecoyScanning = false;
-            }
-        }, 3000);
     };
 
     // Lắng nghe khi chuyển bài (yt-navigate-start)
@@ -137,7 +125,6 @@
         // Reset
         decoyTriggered = false;
         logic2Logged = false;
-        isDecoyScanning = true; // Bắt đầu scan -> Tier 2 sẽ tạm nhường
         if (scanInterval) clearInterval(scanInterval);
 
         let attempts = 0;
@@ -145,20 +132,18 @@
         // Quét 60 lần x 50ms = 3 giây (như code gốc)
         scanInterval = setInterval(() => {
             attempts++;
-            const isAd = checkIfAdIsShowing();
+            const isAd = document.querySelector('.ad-showing, .ad-interrupting');
             const urlParams = new URLSearchParams(window.location.search);
             const targetId = urlParams.get('v');
 
             if (isAd && targetId && !decoyTriggered) {
                 clearInterval(scanInterval);
-                // isDecoyScanning vẫn TRUE để chặn Tier 2 xen vào lúc đang Decoy
                 console.log(`%c[Hunter] 🔍 Phát hiện ADS! (attempt ${attempts})`, 'color: red; font-weight: bold;');
                 executeDecoyTrick(targetId);
             }
 
             if (attempts > 60) {
                 clearInterval(scanInterval);
-                isDecoyScanning = false; // Timeout -> Tier 2 được phép vào
                 if (!decoyTriggered) {
                     console.log('%c[Hunter] ✅ Video sạch.', 'color: green');
                     decoyTriggered = true;
@@ -175,12 +160,6 @@
     // ==========================================
     const killActiveAd = (video) => {
         if (!video) return;
-
-        // PRIORITY CHECK: Nếu đang scan Decoy -> Chỉ Mute, đừng log hay seek vội
-        if (isDecoyScanning) {
-            if (!video.muted) video.muted = true; // Silent mode
-            return; // Nhường sân khấu cho Decoy
-        }
 
         // Log tiếp quản 1 lần
         if (!logic2Logged) {
@@ -219,19 +198,9 @@
     };
 
     const checkIfAdIsShowing = () => {
-        // Check các class cơ bản
         const adElement = document.querySelector('.ad-showing, .ad-interrupting');
-
-        // Check các selector từ JSON (nếu có)
-        const jsonSelectorMatch = adShowingSelectors.some(sel => document.querySelector(sel));
-
-        // Check nút skip (dấu hiệu chắc chắn có Ads)
-        const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
-
-        // Check overlay
-        const overlay = document.querySelector('.ytp-ad-player-overlay');
-
-        return !!(adElement || jsonSelectorMatch || skipBtn || overlay);
+        const skipBtn = document.querySelector('.ytp-ad-skip-button');
+        return !!(adElement || skipBtn);
     };
 
     const clickSkipButtons = () => {
@@ -334,12 +303,7 @@
 
     window.addEventListener('message', (e) => {
         if (e.data.type === 'HUNTER_DECOY_DONE') {
-            console.log('%c[Decoy] 🔄 Quay về xong! ⏳ Chờ 2s để player ổn định...', 'color: cyan');
-            // Grace Period: Chờ 2s sau khi về video chính mới thả Logic 2 ra.
-            // Để tránh việc player chưa load xong UI, vẫn còn class .ad-showing làm Logic 2 quét nhầm.
-            setTimeout(() => {
-                isDecoyScanning = false;
-            }, 2000);
+            console.log('%c[Decoy] 🔄 Quay về xong!', 'color: cyan');
         }
         // Từ inject.js -> History API pushState/replaceState
         if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
