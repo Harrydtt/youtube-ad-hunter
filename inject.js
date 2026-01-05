@@ -1,36 +1,71 @@
-// inject.js - v30: The Link Hunter (URL-Based Wipe)
+// inject.js - v31: Remote Config + Refactored
 (function () {
-    console.log('[Hunter] Stealth Engine v30.1: Header Fix 🔗');
+    console.log('[Hunter] Stealth Engine v31: Hardened 🛡️');
 
     // --- 1. CONFIG & STATE ---
+    const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
+    const UPDATE_INTERVAL = 3600 * 1000; // 1 hour
+
+    // Default config (fallback if remote fetch fails)
     let CONFIG = {
-        ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
+        ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse', 'adBreakHeartbeatParams'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
         popup_keys: [
-            'upsellDialogRenderer',
-            'promoMessageRenderer',
-            'tvAppUpsellDialogRenderer',
-            'playerErrorMessageRenderer',
-            'mealbarPromoRenderer',
-            'actionCompanionAdRenderer',
-            'statementBannerRenderer',
-            'youTubePaymentPromoRenderer'
+            'upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer',
+            'playerErrorMessageRenderer', 'mealbarPromoRenderer', 'actionCompanionAdRenderer',
+            'statementBannerRenderer', 'youTubePaymentPromoRenderer'
         ],
-        // The signature URL for Adblock warnings
-        block_url: 'support.google.com/youtube/answer/3037019'
+        block_urls: ['support.google.com/youtube/answer/3037019']
     };
     let jsonCutEnabled = true;
 
-    // Load Config
+    // --- 2. REMOTE CONFIG LOADER ---
+    const loadRemoteConfig = async () => {
+        try {
+            const lastUpdate = localStorage.getItem('hunter_config_time');
+            if (lastUpdate && Date.now() - parseInt(lastUpdate) < UPDATE_INTERVAL) {
+                // Load from cache
+                const cached = localStorage.getItem('hunter_config');
+                if (cached) {
+                    const data = JSON.parse(cached);
+                    mergeConfig(data);
+                    return;
+                }
+            }
+
+            const response = await fetch(CONFIG_URL + '?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                mergeConfig(data);
+                localStorage.setItem('hunter_config', JSON.stringify(data));
+                localStorage.setItem('hunter_config_time', Date.now().toString());
+                console.log('[Hunter] 🔄 Remote config loaded');
+            }
+        } catch (e) {
+            console.warn('[Hunter] Config fetch failed, using defaults');
+        }
+    };
+
+    const mergeConfig = (data) => {
+        if (data.adJsonKeys) CONFIG.ad_keys = data.adJsonKeys;
+        if (data.popupJsonKeys) CONFIG.popup_keys = data.popupJsonKeys;
+        if (data.blockUrls) CONFIG.block_urls = data.blockUrls;
+    };
+
+    // Load config immediately
+    loadRemoteConfig();
+
+    // Also check for local config element (from content.js)
     try {
         const configEl = document.getElementById('hunter-config-data');
         if (configEl) {
-            const dynamicConfig = JSON.parse(configEl.textContent);
-            CONFIG = { ...CONFIG, ...dynamicConfig };
+            const localConfig = JSON.parse(configEl.textContent);
+            mergeConfig(localConfig);
             configEl.remove();
         }
     } catch (e) { }
 
+    // Listen for toggle messages
     window.addEventListener('message', (e) => {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
@@ -38,7 +73,7 @@
         }
     });
 
-    // --- 2. CSS MUZZLE ---
+    // --- 3. CSS MUZZLE ---
     const style = document.createElement('style');
     style.id = 'hunter-muzzle-css';
     style.textContent = `
@@ -46,155 +81,139 @@
         tp-yt-paper-dialog[role="dialog"] ytd-enforcement-message-view-model,
         #mealbar-promo-renderer,
         ytd-popup-container ytd-promo-message-renderer,
-        ytd-popup-container ytd-unity-gamification-renderer,
         ytd-popup-container ytd-mealbar-promo-renderer,
         .ytp-ad-overlay-container,
         ytd-watch-flexy[player-unavailable] #player-unavailable,
-        /* Hide any toast containing the help link (generic heuristic if CSS allowed checking content, forcing hidden on suspects) */
         tp-yt-paper-toast
-        {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            height: 0 !important;
-            width: 0 !important;
-            z-index: -9999 !important;
-        }
+        { display: none !important; visibility: hidden !important; opacity: 0 !important; 
+          pointer-events: none !important; height: 0 !important; width: 0 !important; z-index: -9999 !important; }
     `;
     (document.head || document.documentElement).appendChild(style);
 
-    // --- 3. DOM BOUNCER (URL HUNTER) ---
+    // --- 4. DOM BOUNCER ---
     const observer = new MutationObserver((mutations) => {
         if (!jsonCutEnabled) return;
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== 1) continue;
-
-                // 1. Tag Name/ID Check
                 const tag = node.tagName.toLowerCase();
                 const id = node.id;
+
+                // Check by tag/id
                 if (tag === 'ytd-enforcement-message-view-model' ||
                     tag === 'ytd-mealbar-promo-renderer' ||
                     id === 'mealbar-promo-renderer' ||
                     id === 'player-unavailable' ||
-                    (tag === 'tp-yt-paper-dialog' && node.querySelector('ytd-enforcement-message-view-model'))
-                ) {
+                    (tag === 'tp-yt-paper-dialog' && node.querySelector('ytd-enforcement-message-view-model'))) {
                     node.remove();
-                    console.log(`%c[Bouncer] 🥊 Kicked out: ${tag}#${id}`, 'color: red; font-weight: bold;');
-                    const video = document.querySelector('video');
-                    if (video && video.paused) video.play();
+                    console.log(`%c[Bouncer] 🥊 Kicked: ${tag}#${id}`, 'color: red; font-weight: bold;');
+                    resumeVideo();
                     continue;
                 }
 
-                // 2. Deep Link Check (The Link Hunter)
-                // Check if this node or children contains the blocked URL
-                if (node.innerHTML.includes(CONFIG.block_url)) {
+                // Check by blocked URL
+                if (node.innerHTML && CONFIG.block_urls.some(url => node.innerHTML.includes(url))) {
                     node.remove();
-                    console.log(`%c[Bouncer] 🔗 Kicked out node containing Block URL`, 'color: red; font-weight: bold;');
-                    const video = document.querySelector('video');
-                    if (video && video.paused) video.play();
+                    console.log(`%c[Bouncer] 🔗 Killed node with blocked URL`, 'color: red;');
+                    resumeVideo();
                 }
             }
         }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    // --- 4. BEACON SYSTEM ---
+    const resumeVideo = () => {
+        const video = document.querySelector('video');
+        if (video && video.paused) video.play();
+    };
+
+    // --- 5. BEACON SYSTEM ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
     };
-    const fireBeacon = (url) => {
-        if (!url || !url.startsWith('http')) return;
-        const img = new Image();
-        img.style.display = 'none';
-        img.src = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
+
+    const extractTrackingUrls = (obj, urls = []) => {
+        if (!obj || typeof obj !== 'object') return urls;
+        for (let key in obj) {
+            if (CONFIG.tracking_keys.includes(key)) {
+                const val = obj[key];
+                if (Array.isArray(val)) val.forEach(v => urls.push(v.baseUrl || v));
+                else if (typeof val === 'string') urls.push(val);
+            } else if (typeof obj[key] === 'object') {
+                extractTrackingUrls(obj[key], urls);
+            }
+        }
+        return urls;
     };
-    const fakeAdViewing = (adData) => {
-        if (!adData) return;
+
+    // --- 6. CORE PROCESSORS (Refactored) ---
+    const processObject = (obj, processor) => {
+        if (!obj || typeof obj !== 'object') return;
         try {
-            const findUrls = (obj) => {
-                let urls = [];
-                if (!obj) return urls;
-                if (typeof obj === 'object') {
-                    for (let key in obj) {
-                        if (CONFIG.tracking_keys.includes(key)) {
-                            const val = obj[key];
-                            if (Array.isArray(val)) val.forEach(v => urls.push(v.baseUrl || v));
-                            else if (typeof val === 'string') urls.push(val);
-                        } else {
-                            urls = urls.concat(findUrls(obj[key]));
-                        }
-                    }
-                }
-                return urls;
-            };
-            const urls = findUrls(adData);
-            if (urls.length > 0) {
-                sendToOffscreen(urls);
-                urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 150));
-            }
-        } catch (e) { }
+            processor(obj);
+            if (obj.playerResponse) processor(obj.playerResponse);
+        } catch (e) {
+            console.warn('[Hunter] Process error:', e);
+        }
     };
 
-    // --- 5. CORE LOGIC ---
     const nukeAds = (data) => {
-        if (data.adPlacements) { fakeAdViewing(data.adPlacements); data.adPlacements = []; }
-        if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
-        if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
-        if (data.playerResponse) {
-            if (data.playerResponse.adPlacements) { fakeAdViewing(data.playerResponse.adPlacements); data.playerResponse.adPlacements = []; }
-            if (data.playerResponse.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
-            if (data.playerResponse.adSlots) { fakeAdViewing(data.playerResponse.adSlots); data.playerResponse.adSlots = []; }
-        }
-    };
-
-    const cleanPlayability = (data) => {
-        if (data.playabilityStatus) {
-            // Check link trong json luôn
-            const jsonStr = JSON.stringify(data.playabilityStatus);
-            if (jsonStr.includes(CONFIG.block_url)) {
-                // Nếu chứa link cấm -> Xóa và ép OK
-                data.playabilityStatus = { status: 'OK', playableInEmbed: true };
-                console.log('[Hunter] 🔗 Neutralized malicious playabilityStatus containing Block URL');
-            } else if (data.playabilityStatus.errorScreen) {
-                delete data.playabilityStatus.errorScreen;
-            }
-
-            if (data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
-                data.playabilityStatus.status = 'OK';
-                data.playabilityStatus.playableInEmbed = true;
-            }
-        }
-        if (data.playerResponse?.playabilityStatus) cleanPlayability(data.playerResponse);
+        processObject(data, (obj) => {
+            CONFIG.ad_keys.forEach(key => {
+                if (obj[key]) {
+                    const urls = extractTrackingUrls(obj[key]);
+                    if (urls.length > 0) sendToOffscreen(urls);
+                    if (Array.isArray(obj[key])) obj[key] = [];
+                    else delete obj[key];
+                }
+            });
+        });
     };
 
     const deMonetize = (data) => {
-        if (data.videoDetails) data.videoDetails.isMonetized = false;
-        if (data.playerResponse?.videoDetails) data.playerResponse.videoDetails.isMonetized = false;
-        if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
-        if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
-        if (data.playerConfig?.daiConfig) data.playerConfig.daiConfig = null;
-        if (data.playerResponse?.playerConfig?.daiConfig) data.playerResponse.playerConfig.daiConfig = null;
-        if (data.adBlockingInfo) delete data.adBlockingInfo;
-        if (data.playerResponse?.adBlockingInfo) delete data.playerResponse.adBlockingInfo;
+        processObject(data, (obj) => {
+            if (obj.videoDetails) obj.videoDetails.isMonetized = false;
+            if (obj.playerConfig?.daiConfig) obj.playerConfig.daiConfig = null;
+            if (obj.adBlockingInfo) delete obj.adBlockingInfo;
+        });
+    };
+
+    const cleanPlayability = (data) => {
+        processObject(data, (obj) => {
+            if (!obj.playabilityStatus) return;
+
+            // Check for blocked URLs in playabilityStatus
+            const str = JSON.stringify(obj.playabilityStatus);
+            if (CONFIG.block_urls.some(url => str.includes(url))) {
+                obj.playabilityStatus = { status: 'OK', playableInEmbed: true };
+                console.log('[Hunter] 🔗 Neutralized playabilityStatus');
+                return;
+            }
+
+            // Remove error screen
+            if (obj.playabilityStatus.errorScreen) delete obj.playabilityStatus.errorScreen;
+
+            // Force OK status
+            if (obj.playabilityStatus.status !== 'OK' && obj.playabilityStatus.status !== 'LOGIN_REQUIRED') {
+                obj.playabilityStatus.status = 'OK';
+                obj.playabilityStatus.playableInEmbed = true;
+            }
+        });
     };
 
     const stripPopups = (data) => {
-        // Recursive Check for Block URL in any renderer
         const deepStrip = (obj) => {
             if (!obj || typeof obj !== 'object') return;
             for (let key in obj) {
                 if (CONFIG.popup_keys.includes(key) && obj[key]) {
                     delete obj[key];
-                    console.log(`%c[Hunter] 🚫 Blocked Popup Key: ${key}`, 'color: red;');
+                    console.log(`%c[Hunter] 🚫 Blocked: ${key}`, 'color: red;');
                 } else if (typeof obj[key] === 'object') {
-                    // Check URL signature inside the object
                     const str = JSON.stringify(obj[key]);
-                    if (str.includes(CONFIG.block_url)) {
+                    if (CONFIG.block_urls.some(url => str.includes(url))) {
                         delete obj[key];
-                        console.log(`%c[Hunter] � Blocked Object containing Block URL`, 'color: red;');
+                        console.log(`%c[Hunter] 🔗 Blocked object with URL`, 'color: red;');
                     } else {
                         deepStrip(obj[key]);
                     }
@@ -202,9 +221,10 @@
             }
         };
 
-        if (data.auxiliaryUi) deepStrip(data.auxiliaryUi);
-        if (data.playerResponse?.auxiliaryUi) deepStrip(data.playerResponse.auxiliaryUi);
-        if (data.overlay) deepStrip(data.overlay);
+        processObject(data, (obj) => {
+            if (obj.auxiliaryUi) deepStrip(obj.auxiliaryUi);
+            if (obj.overlay) deepStrip(obj.overlay);
+        });
     };
 
     const processYoutubeData = (data) => {
@@ -213,28 +233,27 @@
             nukeAds(data);
             cleanPlayability(data);
             deMonetize(data);
-            stripPopups(data); // Enhanced Deep Strip
-        } catch (e) { console.warn('[Hunter] Error:', e); }
+            stripPopups(data);
+        } catch (e) {
+            console.warn('[Hunter] Processing error:', e);
+        }
         return data;
     };
 
-    // --- 6. DATA TRAPS ---
+    // --- 7. DATA TRAPS ---
     const trapVariable = (varName) => {
         let internalValue = window[varName];
         try {
             Object.defineProperty(window, varName, {
-                get: function () { return internalValue; },
-                set: function (val) {
-                    if (val) val = processYoutubeData(val);
-                    internalValue = val;
-                },
+                get: () => internalValue,
+                set: (val) => { internalValue = val ? processYoutubeData(val) : val; },
                 configurable: true
             });
         } catch (e) { }
     };
     try { trapVariable('ytInitialPlayerResponse'); trapVariable('ytInitialData'); } catch (e) { }
 
-    // --- 7. HOOKS ---
+    // --- 8. HOOKS ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
@@ -243,6 +262,7 @@
             return data;
         } catch (e) { return originalParse(text, reviver); }
     };
+
     const originalJson = Response.prototype.json;
     Response.prototype.json = async function () {
         try {
@@ -252,9 +272,11 @@
         } catch (e) { return originalJson.call(this); }
     };
 
+    // Initial processing
     if (window.ytInitialPlayerResponse) processYoutubeData(window.ytInitialPlayerResponse);
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
+    // Navigation hooks
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     const origPush = history.pushState; history.pushState = function () { origPush.apply(this, arguments); notify(); };
     const origRep = history.replaceState; history.replaceState = function () { origRep.apply(this, arguments); notify(); };
