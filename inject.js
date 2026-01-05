@@ -1,6 +1,6 @@
-// inject.js - Lobotomy + Shadow Beacon
+// inject.js - Lobotomy + Smart Shadow Beacon
 (function () {
-    console.log('[Hunter] Lobotomy & Beacon Engine: READY 🔪📡');
+    console.log('[Hunter] Stealth Engine: READY 🥷');
 
     // --- MONKEY PATCH HISTORY API ---
     const originalPushState = history.pushState;
@@ -27,28 +27,25 @@
     window.addEventListener('message', function (e) {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
-            console.log(`%c[Lobotomy] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`, 'color: lime');
+            console.log(`%c[Stealth] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`, 'color: lime');
         }
     });
 
     // =============================================
-    // 🔥 HÀM BẮN TÍN HIỆU ẢO (SHADOW BEACON)
+    // 🥷 HÀM FAKE VIEW THÔNG MINH (SMART BEACON)
     // =============================================
     const fakeAdViewing = (adData) => {
         if (!adData) return;
 
         try {
-            // Tìm tất cả các link theo dõi hiển thị (Impression)
-            // Cấu trúc YouTube thường là: adPlacements -> renderer -> impressionEndpoints
+            // Đào sâu tìm link Impression (Báo cáo đã hiển thị)
             const findImpressionUrls = (obj) => {
                 let urls = [];
                 if (!obj) return urls;
-
-                // Nếu là mảng hoặc object, duyệt đệ quy
                 if (typeof obj === 'object') {
                     for (let key in obj) {
+                        // Tìm các key liên quan đến tracking hiển thị
                         if (key === 'impressionEndpoints' || key === 'adImpressionUrl') {
-                            // Đây là chốt chặn ghi nhận "Ads đã hiện"
                             const endpoints = obj[key];
                             if (Array.isArray(endpoints)) {
                                 endpoints.forEach(ep => {
@@ -57,7 +54,6 @@
                                 });
                             }
                         } else {
-                            // Duyệt sâu hơn
                             urls = urls.concat(findImpressionUrls(obj[key]));
                         }
                     }
@@ -68,21 +64,30 @@
             const trackingUrls = findImpressionUrls(adData);
 
             if (trackingUrls.length > 0) {
-                console.log(`%c[Beacon] 📡 Fake ${trackingUrls.length} lượt xem Ads...`, 'color: #00aaff');
-                trackingUrls.forEach(url => {
-                    // Bắn request ngầm, không cần chờ phản hồi (mode: no-cors để tránh lỗi cross-origin)
+                console.log(`%c[Beacon] 📡 Fake ${trackingUrls.length} lượt xem (có jitter)...`, 'color: #00aaff');
+
+                trackingUrls.forEach((url, index) => {
                     if (url && url.startsWith('http')) {
-                        fetch(url, { mode: 'no-cors' }).catch(() => { });
+                        // THÊM DELAY NGẪU NHIÊN (JITTER)
+                        // Giả lập độ trễ mạng và thời gian load ads
+                        // Random từ 100ms đến 800ms cho mỗi request
+                        const delay = Math.floor(Math.random() * 800) + 100 + (index * 50);
+
+                        setTimeout(() => {
+                            fetch(url, {
+                                mode: 'no-cors', // Quan trọng: Bỏ qua CORS để không bị lỗi đỏ
+                                cache: 'no-cache',
+                                credentials: 'omit' // Không gửi cookie thừa thãi
+                            }).catch(() => { });
+                        }, delay);
                     }
                 });
             }
-        } catch (e) {
-            // Lỗi khi fake thì kệ nó, quan trọng là chặn được ads
-        }
+        } catch (e) { }
     };
 
     // =============================================
-    // 🔪 1. HOOK JSON.PARSE (Cửa ngõ chính)
+    // 🔪 HOOK TRUNG TÂM (JSON.PARSE)
     // =============================================
     const originalParse = JSON.parse;
 
@@ -94,18 +99,17 @@
         try {
             if (data && (data.adPlacements || data.playerAds)) {
 
-                // BƯỚC 1: Ăn cắp dữ liệu tracking trước khi xóa
-                // Clone dữ liệu ra để xử lý riêng, tránh ảnh hưởng luồng chính
+                // 1. COPY DỮ LIỆU ĐỂ BÁO CÁO
                 const adClone = {
                     adPlacements: data.adPlacements,
                     playerAds: data.playerAds
                 };
 
-                // Gọi hàm bắn tín hiệu ảo (Chạy bất đồng bộ, không block luồng chính)
-                setTimeout(() => fakeAdViewing(adClone), 100);
+                // Gọi Fake View (Async - Không chặn luồng chính)
+                fakeAdViewing(adClone);
 
-                // BƯỚC 2: Phẫu thuật cắt bỏ (Lobotomy)
-                console.log('%c[Lobotomy] 🔪 Ads cắt bỏ & Đã báo cáo xem', 'color: red; font-weight: bold');
+                // 2. CẮT BỎ (LOBOTOMY)
+                console.log('%c[Lobotomy] 🔪 Ads cắt bỏ & Báo cáo xem (stealth)', 'color: red; font-weight: bold');
                 if (data.adPlacements) delete data.adPlacements;
                 if (data.playerAds) delete data.playerAds;
                 if (data.adSlots) delete data.adSlots;
@@ -116,7 +120,7 @@
     };
 
     // =============================================
-    // 🔪 2. HOOK RESPONSE.JSON (Cửa ngõ phụ - Fetch API)
+    // 🔪 HOOK PHỤ (FETCH)
     // =============================================
     const originalJson = Response.prototype.json;
 
@@ -127,16 +131,12 @@
 
         try {
             if (data && (data.adPlacements || data.playerAds)) {
-
-                // BƯỚC 1: Fake view
                 const adClone = {
                     adPlacements: data.adPlacements,
                     playerAds: data.playerAds
                 };
-                setTimeout(() => fakeAdViewing(adClone), 100);
+                fakeAdViewing(adClone);
 
-                // BƯỚC 2: Cắt bỏ
-                console.log('%c[Fetch Hook] 🔪 Ads cắt bỏ & Đã báo cáo xem', 'color: orange; font-weight: bold');
                 if (data.adPlacements) delete data.adPlacements;
                 if (data.playerAds) delete data.playerAds;
             }
@@ -146,18 +146,18 @@
     };
 
     // =============================================
-    // 🧹 3. DỌN DẸP INITIAL DATA
+    // 🧹 CLEANUP INIT
     // =============================================
     const cleanInitialData = () => {
         if (!jsonCutEnabled) return;
-        if (window.ytInitialPlayerResponse && window.ytInitialPlayerResponse.adPlacements) {
-            delete window.ytInitialPlayerResponse.adPlacements;
-            console.log('%c[Lobotomy] 🧹 Đã xóa ads trong ytInitialPlayerResponse', 'color: lime');
+        if (window.ytInitialPlayerResponse) {
+            if (window.ytInitialPlayerResponse.adPlacements) delete window.ytInitialPlayerResponse.adPlacements;
+            if (window.ytInitialPlayerResponse.playerAds) delete window.ytInitialPlayerResponse.playerAds;
         }
     };
 
     cleanInitialData();
-    setTimeout(cleanInitialData, 1000);
+    setTimeout(cleanInitialData, 500);
 
     console.log('[Hunter] Inject ready ✅');
 })();
