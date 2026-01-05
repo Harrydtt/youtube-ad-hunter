@@ -1,6 +1,6 @@
 // inject.js - v30: The Link Hunter (URL-Based Wipe)
 (function () {
-    console.log('[Hunter] Stealth Engine v30: Link Hunter 🔗');
+    console.log('[Hunter] Stealth Engine v30.1: Header Fix 🔗');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
