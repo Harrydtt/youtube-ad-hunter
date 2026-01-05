@@ -1,6 +1,6 @@
-// inject.js - v23: The Terminator (Aggressive Preroll Cut)
+// inject.js - v24: The Detective (Deep Inspection)
 (function () {
-    console.log('[Hunter] Stealth Engine v23: The Terminator 🤖');
+    console.log('[Hunter] Stealth Engine v24: The Detective 🕵️‍♂️');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
@@ -23,7 +23,6 @@
     window.addEventListener('message', (e) => {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
-            console.log(`%c[Terminator] ⚙️ Cut Mode: ${jsonCutEnabled}`, 'color: yellow');
         }
     });
 
@@ -68,44 +67,50 @@
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC: AGGRESSIVE PRUNING ---
+    // --- 3. CORE LOGIC: THE DETECTIVE ---
     const processAdPlacements = (placements) => {
         if (!Array.isArray(placements) || placements.length === 0) return placements;
 
-        return placements.filter(p => {
+        return placements.filter((p, index) => {
             const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
             let isPreroll = false;
 
-            // 1. Check Type Explicit
-            const adType = renderer?.adBreakType || p.adPlacementRenderer?.config?.adPlacementConfig?.kind;
-            if (adType === 'PREROLL' || adType === '0') isPreroll = true;
+            // Debug Info
+            const debugType = renderer?.adBreakType || p.adPlacementRenderer?.config?.adPlacementConfig?.kind;
+            const debugTime = p.adPlacementRenderer?.timeOffsetMilliseconds;
 
-            // 2. Check Time Offset (Aggressive: < 5000ms is Preroll)
-            const timeOffset = p.adPlacementRenderer?.timeOffsetMilliseconds;
-            if (timeOffset !== undefined) {
-                const timeVal = parseInt(timeOffset);
-                if (!isNaN(timeVal) && timeVal < 5000) isPreroll = true;
+            // 1. Check Keywords (PREROLL / 0)
+            const adType = String(debugType).toUpperCase();
+            if (adType.includes('PREROLL') || adType === '0') isPreroll = true;
+
+            // 2. Check Time (if exists)
+            if (debugTime !== undefined && debugTime !== null) {
+                const t = parseInt(debugTime);
+                if (!isNaN(t) && t < 5000) isPreroll = true;
+            } else {
+                // 3. Heuristic: Index 0 thường là Preroll nếu time = undefined
+                // Trừ phi nó là loại "AD_PLACEMENT_KIND_END" (quảng cáo cuối)
+                if (index === 0 && !adType.includes('END')) {
+                    console.log('[Hunter] 🕵️‍♂️ Suspicious Index 0 with no time -> Assuming Preroll');
+                    isPreroll = true;
+                }
             }
 
-            console.log(`[Item Check] Type: ${adType}, Time: ${timeOffset} -> Preroll? ${isPreroll}`);
+            console.log(`[Check #${index}] Type: ${debugType}, Time: ${debugTime} -> Kill? ${isPreroll}`);
 
             if (isPreroll) {
-                console.log('%c[Terminator] 🔪 Preroll Executed', 'color: red; font-weight: bold;');
                 fakeAdViewing(p);
                 return false; // Kill
             }
 
-            console.log('%c[Terminator] ⏩ Midroll Spared', 'color: orange');
-            return true; // Keep
+            return true; // Keep (Midroll)
         });
     };
 
     const stripPopups = (data) => {
         if (data.auxiliaryUi?.messageRenderers) {
             for (let key of CONFIG.popup_keys) {
-                if (data.auxiliaryUi.messageRenderers[key]) {
-                    delete data.auxiliaryUi.messageRenderers[key];
-                }
+                if (data.auxiliaryUi.messageRenderers[key]) delete data.auxiliaryUi.messageRenderers[key];
             }
         }
         if (data.overlay?.upsellDialogRenderer) delete data.overlay.upsellDialogRenderer;
@@ -113,25 +118,16 @@
 
     const processYoutubeData = (data) => {
         if (!jsonCutEnabled || !data) return data;
-
         try {
-            // Process AdPlacements
-            if (data.adPlacements) {
-                data.adPlacements = processAdPlacements(data.adPlacements);
-            }
-            if (data.playerResponse?.adPlacements) {
-                data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
-            }
+            if (data.adPlacements) data.adPlacements = processAdPlacements(data.adPlacements);
+            if (data.playerResponse?.adPlacements) data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
 
-            // Kill weak ads
             if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
             if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
             if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
 
-            // Anti-Popup
             stripPopups(data);
             if (data.playerResponse) stripPopups(data.playerResponse);
-
         } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
@@ -141,9 +137,7 @@
         let internalValue = window[varName];
         Object.defineProperty(window, varName, {
             get: function () { return internalValue; },
-            set: function (val) {
-                internalValue = processYoutubeData(val);
-            },
+            set: function (val) { internalValue = processYoutubeData(val); },
             configurable: true
         });
     };
@@ -157,9 +151,7 @@
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) {
-                return processYoutubeData(data);
-            }
+            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) return processYoutubeData(data);
             return data;
         } catch (e) { return originalParse(text, reviver); }
     };
@@ -168,9 +160,7 @@
     Response.prototype.json = async function () {
         try {
             const data = await originalJson.call(this);
-            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) {
-                return processYoutubeData(data);
-            }
+            if (data && (data.adPlacements || data.playerResponse || data.auxiliaryUi)) return processYoutubeData(data);
             return data;
         } catch (e) { return originalJson.call(this); }
     };
