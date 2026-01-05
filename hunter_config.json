@@ -1,0 +1,14 @@
+{
+    "ad_keys": [
+        "adPlacements",
+        "playerAds",
+        "adSlots",
+        "kidsAdPlacements",
+        "adBreakResponse"
+    ],
+    "tracking_keys": [
+        "impressionEndpoints",
+        "adImpressionUrl",
+        "clickthroughEndpoint"
+    ]
+}
