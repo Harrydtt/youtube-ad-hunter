@@ -299,6 +299,40 @@
         } catch (e) { }
     };
 
+    // --- HEADER BUTTON ---
+    const createHeaderButton = () => {
+        if (document.getElementById('hunter-toggle-btn')) return;
+
+        const buttonsContainer = document.querySelector('ytd-masthead #end #buttons');
+        if (!buttonsContainer) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'hunter-toggle-btn';
+        btn.style.cssText = `
+            background: ${isHunterActive ? '#cc0000' : '#666'};
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 18px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;
+            transition: all 0.3s ease;
+        `;
+        btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+
+        btn.addEventListener('click', () => {
+            isHunterActive = !isHunterActive;
+            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+            btn.style.background = isHunterActive ? '#cc0000' : '#666';
+            console.log(`[Hunter] ${isHunterActive ? 'BẬT' : 'TẮT'}`);
+        });
+
+        buttonsContainer.insertBefore(btn, buttonsContainer.firstChild);
+        console.log('[Hunter] Header button created ✅');
+    };
+
     // --- INIT ---
     updateSelectorsFromGithub();
     injectScript();
@@ -307,6 +341,11 @@
     window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
 
     setInterval(runHunterLoop, 50);
+
+    // Try creating header button multiple times
+    setTimeout(createHeaderButton, 1000);
+    setTimeout(createHeaderButton, 3000);
+    setTimeout(createHeaderButton, 5000);
 
     const waitForPlayer = setInterval(() => {
         const player = document.querySelector('#movie_player');
