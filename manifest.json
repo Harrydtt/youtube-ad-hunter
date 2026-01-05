@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Hunter",
-  "version": "28.0",
+  "version": "28.1",
   "description": "Chặn quảng cáo YouTube bằng JSON Pruning + Offscreen Beaconing",
   "permissions": [
     "scripting",

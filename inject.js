@@ -1,6 +1,6 @@
 // inject.js - v28: The Consistency Fix (Resurrected De-Monetization)
 (function () {
-    console.log('[Hunter] Stealth Engine v28: Consistency Fix 🧩');
+    console.log('[Hunter] Stealth Engine v28.1: Consistency Fix (Hotfix) 🧩');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
@@ -62,7 +62,7 @@
     // --- 3. DOM BOUNCER (MutationObserver) ---
     const observer = new MutationObserver((mutations) => {
         if (!jsonCutEnabled) return;
-        for (constmutation of mutations) {
+        for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== 1) continue;
                 const tag = node.tagName.toLowerCase();
