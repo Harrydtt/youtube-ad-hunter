@@ -1,4 +1,4 @@
-// popup.js - v31.1: Auto-toggle + Warning
+// popup.js - v31.2: Removed popup warning, simplified
 document.addEventListener('DOMContentLoaded', () => {
     const toggles = {
         jsoncut: document.getElementById('toggle-jsoncut'),
@@ -14,10 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'logic2Enabled',
         'staticAdsEnabled'
     ], (result) => {
-        toggles.jsoncut.checked = result.jsonCutEnabled !== false; // Default ON
-        toggles.offscreen.checked = result.offscreenEnabled !== false; // Default ON
-        toggles.logic2.checked = result.logic2Enabled !== false; // Default ON
-        toggles.static.checked = result.staticAdsEnabled === true; // Default OFF
+        toggles.jsoncut.checked = result.jsonCutEnabled !== false;
+        toggles.offscreen.checked = result.offscreenEnabled !== false;
+        toggles.logic2.checked = result.logic2Enabled !== false;
+        toggles.static.checked = result.staticAdsEnabled === true;
     });
 
     // JSON Cut - Auto-toggle Offscreen
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.storage.local.set({ jsonCutEnabled: isOn });
         console.log('JSON Cut:', isOn ? 'ON' : 'OFF');
 
-        // Auto-toggle Offscreen to match
+        // Auto-enable Offscreen when JSON Cut is on
         if (isOn && !toggles.offscreen.checked) {
             toggles.offscreen.checked = true;
             chrome.storage.local.set({ offscreenEnabled: true });
@@ -34,28 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Offscreen - Warning if manually disabled
+    // Offscreen - No popup, just save
     toggles.offscreen.addEventListener('change', () => {
-        const isOn = toggles.offscreen.checked;
-
-        if (!isOn) {
-            // Show warning
-            const confirmed = confirm(
-                '⚠️ CẢNH BÁO!\n\n' +
-                'Tắt Offscreen Beacon sẽ KHÔNG gửi fake view ads.\n' +
-                'Điều này có thể khiến YouTube phát hiện bạn đang dùng adblocker!\n\n' +
-                'Bạn có chắc chắn muốn tắt?'
-            );
-
-            if (!confirmed) {
-                // User cancelled, revert toggle
-                toggles.offscreen.checked = true;
-                return;
-            }
-        }
-
-        chrome.storage.local.set({ offscreenEnabled: isOn });
-        console.log('Offscreen:', isOn ? 'ON' : 'OFF');
+        chrome.storage.local.set({ offscreenEnabled: toggles.offscreen.checked });
+        console.log('Offscreen:', toggles.offscreen.checked ? 'ON' : 'OFF');
     });
 
     // Logic Speed/Skip
