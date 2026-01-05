@@ -115,14 +115,12 @@
         }
     });
 
-    // --- AD DETECTION ---
+    // --- AD DETECTION (Chỉ check .ad-showing - reliable nhất) ---
     const checkIfAdIsShowing = () => {
-        for (const sel of AD_SHOWING_SELECTORS) {
-            const el = document.querySelector(sel);
-            if (el) return true;
-        }
         const player = document.querySelector('#movie_player');
-        if (player && player.classList.contains('ad-showing')) return true;
+        if (player && player.classList.contains('ad-showing')) {
+            return true;
+        }
         return false;
     };
 
