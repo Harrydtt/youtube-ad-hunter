@@ -212,19 +212,8 @@
         try {
             const data = await originalJson.call(this);
 
-            if (!jsonCutEnabled || !data) return data;
-
-            if (data.adPlacements) {
-                console.log('%c[Fetch] Tìm thấy adPlacements trong Fetch!', 'color: lime');
-                data.adPlacements = processAdPlacements(data.adPlacements);
-            }
-
-            if (data.playerAds) {
-                collectAndBeacon(data.playerAds);
-                data.playerAds = [];
-            }
-
-            return data;
+            // Use the new helper function
+            return processYoutubeData(data);
         } catch (e) {
             return originalJson.call(this);
         }
