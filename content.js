@@ -7,22 +7,29 @@
     const DECOY_ID = 'tPEE9ZwTmy0';
 
     // --- TOGGLE FLAGS (Điều khiển từ Popup) ---
-    let decoyEnabled = true;  // Mặc định BẬT
-    let logic2Enabled = true; // Mặc định BẬT
+    let jsonCutEnabled = true;  // Mặc định BẬT (JSON Lobotomy)
+    let logic2Enabled = true;   // Mặc định BẬT (Speed/Skip)
+
+    // Gửi settings sang inject.js
+    const syncJsonCutToInject = () => {
+        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: jsonCutEnabled }, '*');
+    };
 
     // Load settings từ storage
-    chrome.storage.local.get(['decoyEnabled', 'logic2Enabled'], (result) => {
-        decoyEnabled = result.decoyEnabled !== false;
+    chrome.storage.local.get(['jsonCutEnabled', 'logic2Enabled'], (result) => {
+        jsonCutEnabled = result.jsonCutEnabled !== false;
         logic2Enabled = result.logic2Enabled !== false;
-        console.log(`[Hunter] Settings: Decoy=${decoyEnabled}, Logic2=${logic2Enabled}`);
+        console.log(`[Hunter] Settings: JsonCut=${jsonCutEnabled}, Logic2=${logic2Enabled}`);
+        syncJsonCutToInject();
     });
 
     // Lắng nghe thay đổi settings REALTIME từ popup
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'local') {
-            if (changes.decoyEnabled !== undefined) {
-                decoyEnabled = changes.decoyEnabled.newValue;
-                console.log(`[Hunter] ⚙️ Decoy: ${decoyEnabled ? 'BẬT' : 'TẮT'}`);
+            if (changes.jsonCutEnabled !== undefined) {
+                jsonCutEnabled = changes.jsonCutEnabled.newValue;
+                console.log(`[Hunter] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`);
+                syncJsonCutToInject();
             }
             if (changes.logic2Enabled !== undefined) {
                 logic2Enabled = changes.logic2Enabled.newValue;
@@ -33,8 +40,6 @@
 
     // --- BIẾN CỜ QUAN TRỌNG (STATE FLAGS) ---
     let currentVideoElement = null;
-    let isDecoyPending = false; // Cờ: Đang chờ cơ hội để dùng Decoy
-    let isDecoyExecuting = false; // Cờ: Đang trong quá trình nhảy Decoy
     let logic2Logged = false; // Cờ: Đã log Logic 2 chưa (tránh spam)
 
     // --- SELECTORS ---
@@ -116,7 +121,7 @@
     };
 
     // ==========================================
-    // MODULE: INJECT & DECOY
+    // MODULE: INJECT SCRIPT
     // ==========================================
     const injectScript = () => {
         if (document.getElementById('hunter-inject')) return;
@@ -124,13 +129,10 @@
         script.id = 'hunter-inject';
         script.src = chrome.runtime.getURL('inject.js');
         document.head.appendChild(script);
-    };
-
-    const executeDecoyTrick = (targetId) => {
-        console.log(`%c[Decoy] 🚨 Kích hoạt ngay lập tức!`, 'color: red; font-weight: bold;');
-        isDecoyExecuting = true;
-        isDecoyPending = false; // Đã dùng xong quyền Decoy cho lần chuyển bài này
-        window.postMessage({ type: 'HUNTER_DECOY', decoyId: DECOY_ID, targetId: targetId }, '*');
+        // Gửi settings sau khi inject xong
+        script.onload = () => {
+            syncJsonCutToInject();
+        };
     };
 
     // ==========================================
@@ -138,7 +140,6 @@
     // ==========================================
 
     // Hàm này sẽ được gọi bởi TẤT CẢ các triggers (Event, Observer, Interval)
-    // Nó quyết định dùng vũ khí gì (Decoy hay Speedup)
     const handleAdDetection = (source, video) => {
         if (!isHunterActive) return;
 
@@ -147,34 +148,22 @@
 
         if (isAd && video) {
             // --- CÓ ADS ---
+            // JSON Cut đã chặn ở tầng data, nếu vẫn còn ads thì dùng Logic 2
 
-            // Nếu đang chạy Decoy thì kệ nó, đừng can thiệp
-            if (isDecoyExecuting) return;
-
-            // KIỂM TRA QUYỀN ƯU TIÊN DECOY
-            const urlParams = new URLSearchParams(window.location.search);
-            const targetId = urlParams.get('v');
-
-            if (isDecoyPending && targetId && decoyEnabled) {
-                // ƯU TIÊN 1: DÙNG DECOY (Vũ khí hạng nặng)
-                // Lợi dụng tốc độ detect của Logic 2 để kích hoạt Logic 1
-                console.log(`%c[Hunter] ⚡ Phát hiện Ads từ ${source} -> Gọi DECOY`, 'color: magenta; font-weight: bold;');
-                executeDecoyTrick(targetId);
-            } else if (logic2Enabled) {
-                // ƯU TIÊN 2: DÙNG SPEED/SKIP (Vũ khí hạng nhẹ)
-                // Dùng khi Decoy đã xài rồi, hoặc ads mid-roll
+            if (logic2Enabled) {
+                // DÙNG SPEED/SKIP (Fallback khi JSON Cut miss)
                 if (!logic2Logged) {
                     console.log(`%c[Hunter] ⚡ Logic 2 tiếp quản (từ ${source})`, 'color: orange;');
                     logic2Logged = true;
                 }
                 killActiveAd(video);
             } else {
-                // Cả 2 đều TẮT -> Chỉ im lặng mute
+                // Logic 2 TẮT -> Chỉ im lặng mute
                 if (!video.muted) video.muted = true;
             }
         } else {
             // --- KHÔNG CÓ ADS ---
-            if (video && !isDecoyExecuting) {
+            if (video) {
                 if (video.muted) video.muted = false;
                 if (video.playbackRate > 1) video.playbackRate = 1;
             }
@@ -243,22 +232,8 @@
     let lastVideoId = null;
 
     const onNavigateStart = () => {
-        console.log('%c[Hunter] 🚀 Chuyển bài -> Nạp đạn Decoy', 'color: yellow');
-
-        // Chỉ đơn giản là nạp cờ, không cần chạy vòng lặp quét riêng nữa
-        // Các trigger ở trên (Metadata/Loop) sẽ tự thấy cờ này và bắn
-        isDecoyPending = true;
-        isDecoyExecuting = false;
+        console.log('%c[Hunter] 🚀 Chuyển bài -> JSON Cut sẽ chặn ads từ gốc', 'color: yellow');
         logic2Logged = false; // Reset log flag cho video mới
-
-        // Timeout an toàn: Nếu sau 5s mà không gặp ads nào thì hủy cờ Decoy
-        // Để tránh việc kích hoạt Decoy nhầm cho video sau (mid-roll)
-        setTimeout(() => {
-            if (isDecoyPending) {
-                isDecoyPending = false;
-                // console.log('[Hunter] Timeout Decoy pending -> Video sạch');
-            }
-        }, 5000);
     };
 
     const checkAndTriggerNavigate = () => {
@@ -316,17 +291,6 @@
     injectScript();
 
     window.addEventListener('message', (e) => {
-        if (e.data.type === 'HUNTER_DECOY_DONE') {
-            const status = logic2Enabled ? '(Logic 2 sẵn sàng)' : '(Logic 2 đang TẮT)';
-            console.log(`%c[Decoy] 🔄 Xong! ${status}`, 'color: cyan');
-            isDecoyExecuting = false;
-            // isDecoyPending đã set false lúc execute rồi
-
-            // Fix mute
-            const v = document.querySelector('video');
-            if (v && v.muted) v.muted = false;
-        }
-
         if (e.data.type === 'HUNTER_NAVIGATE_URGENT') {
             checkAndTriggerNavigate();
         }
@@ -346,5 +310,5 @@
         }
     }, 500);
 
-    console.log('[Hunter] v8.3: Realtime Toggle + Reduced Log Spam 🎛️⚡');
+    console.log('[Hunter] v9.0: JSON Lobotomy + Fallback 🔪⚡');
 })();

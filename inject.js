@@ -19,48 +19,74 @@
         window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     });
 
-    // --- XỬ LÝ MESSAGE TỪ CONTENT SCRIPT ---
+    // =============================================
+    // 🧪 DATA LOBOTOMY: CẮT QUẢNG CÁO TỪ GỐC JSON
+    // =============================================
+    let jsonCutEnabled = true; // Mặc định BẬT, sẽ được sync từ content.js
+
+    // Lắng nghe toggle từ content.js
     window.addEventListener('message', function (e) {
-        if (e.data && e.data.type === 'HUNTER_DECOY') {
-            const player = document.getElementById('movie_player');
-
-            if (player && player.loadVideoById) {
-                console.log('%c[Decoy] 🚨 KÍCH HOẠT: ' + e.data.decoyId, 'color: red; font-weight: bold;');
-
-                // BƯỚC 1: STOP VIDEO (QUAN TRỌNG)
-                // Ép hủy toàn bộ session quảng cáo và buffer hiện tại
-                if (typeof player.stopVideo === 'function') {
-                    player.stopVideo();
-                }
-
-                // BƯỚC 2: Load Video Mồi
-                // Dùng object syntax để tường minh hơn
-                player.loadVideoById({
-                    videoId: e.data.decoyId,
-                    startSeconds: 0
-                });
-
-                // BƯỚC 3: Quay về Video Chính sau thời gian ngắn
-                // Tăng nhẹ delay lên 200ms để đảm bảo trạng thái STOP được server ghi nhận
-                setTimeout(function () {
-                    console.log('%c[Decoy] 🔄 Quay về: ' + e.data.targetId, 'color: cyan');
-
-                    // BƯỚC 4: LOAD CÓ THAM SỐ (FIX LỖI CÒN ADS)
-                    // startSeconds: 0.1 -> Bỏ qua mốc trigger ads tại 0.00s
-                    player.loadVideoById({
-                        videoId: e.data.targetId,
-                        startSeconds: 0.1,
-                        suggestedQuality: 'hd1080'
-                    });
-
-                    window.postMessage({ type: 'HUNTER_DECOY_DONE' }, '*');
-                }, 1000); // Tăng lên 1s để đảm bảo ads clear hoàn toàn
-
-            } else {
-                console.log('%c[Decoy] ❌ Player API không sẵn sàng!', 'color: red');
-            }
+        if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
+            jsonCutEnabled = e.data.enabled;
+            console.log(`%c[Lobotomy] ⚙️ JSON Cut: ${jsonCutEnabled ? 'BẬT' : 'TẮT'}`, 'color: lime');
         }
     });
 
+    // --- 1. HOOK JSON.PARSE (Cửa ngõ dữ liệu) ---
+    const originalParse = JSON.parse;
+
+    JSON.parse = function (text, reviver) {
+        const data = originalParse(text, reviver);
+
+        if (!jsonCutEnabled) return data;
+
+        try {
+            if (data && (data.adPlacements || data.playerAds || data.adSlots)) {
+                console.log('%c[Lobotomy] 🔪 Phát hiện Ads trong JSON -> CẮT BỎ!', 'color: red; font-weight: bold');
+
+                if (data.adPlacements) delete data.adPlacements;
+                if (data.playerAds) delete data.playerAds;
+                if (data.adSlots) delete data.adSlots;
+
+                console.log('%c[Lobotomy] ✅ Dữ liệu đã sạch.', 'color: cyan');
+            }
+        } catch (e) { }
+
+        return data;
+    };
+
+    // --- 2. HOOK RESPONSE.JSON (Cho Fetch API) ---
+    const originalJson = Response.prototype.json;
+
+    Response.prototype.json = async function () {
+        const data = await originalJson.call(this);
+
+        if (!jsonCutEnabled) return data;
+
+        try {
+            if (data && (data.adPlacements || data.playerAds)) {
+                console.log('%c[Fetch Hook] 🔪 Phát hiện Ads trong Response -> CẮT BỎ!', 'color: orange; font-weight: bold');
+                if (data.adPlacements) delete data.adPlacements;
+                if (data.playerAds) delete data.playerAds;
+            }
+        } catch (e) { }
+
+        return data;
+    };
+
+    // --- 3. DỌN DẸP DỮ LIỆU CŨ (GLOBAL VARIABLE) ---
+    const cleanInitialData = () => {
+        if (!jsonCutEnabled) return;
+        if (window.ytInitialPlayerResponse && window.ytInitialPlayerResponse.adPlacements) {
+            delete window.ytInitialPlayerResponse.adPlacements;
+            console.log('%c[Lobotomy] 🧹 Đã xóa ads trong ytInitialPlayerResponse', 'color: lime');
+        }
+    };
+
+    // Chạy ngay và sau 1s (đề phòng)
+    cleanInitialData();
+    setTimeout(cleanInitialData, 1000);
+
+    console.log('%c[Hunter] 🧪 DATA LOBOTOMY: ACTIVATED', 'color: #00ff00; font-weight: bold; font-size: 14px');
     console.log('[Hunter] Inject ready ✅');
 })();
