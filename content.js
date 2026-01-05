@@ -91,30 +91,25 @@
     const clickSkipButton = () => {
         if (!settings.logic2Enabled) return false;
 
-        // All possible skip button selectors
+        // Try all possible skip button selectors (no visibility check - just click if exists)
         const selectors = [
             '.ytp-ad-skip-button',
             '.ytp-ad-skip-button-modern',
             '.ytp-skip-ad-button',
             '.videoAdUiSkipButton',
             'button.ytp-ad-skip-button',
-            '.ytp-ad-skip-button-container button',
-            '[class*="skip"] button',
-            'button[class*="skip"]',
-            '.ytp-ad-skip-button-slot button',
-            '#skip-button\\:',
-            'button[id^="skip-button"]'
+            '.ytp-ad-skip-button-container button'
         ];
 
         for (const sel of selectors) {
-            const btn = document.querySelector(sel);
-            if (btn && btn.offsetParent !== null) { // Check visible
-                // Multiple click methods for reliability
-                btn.click();
-                btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                console.log('[Hunter] ⏩ Skipped Ad (Aggressive)');
-                return true;
-            }
+            try {
+                const btn = document.querySelector(sel);
+                if (btn) {
+                    btn.click();
+                    console.log('[Hunter] ⏩ Skipped Ad');
+                    return true;
+                }
+            } catch (e) { /* ignore */ }
         }
         return false;
     };
@@ -269,5 +264,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31.3: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v31.4: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
