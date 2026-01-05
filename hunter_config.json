@@ -9,6 +9,12 @@
     "tracking_keys": [
         "impressionEndpoints",
         "adImpressionUrl",
-        "clickthroughEndpoint"
+        "clickthroughEndpoint",
+        "start",
+        "firstQuartile",
+        "midpoint",
+        "thirdQuartile",
+        "complete",
+        "ping"
     ]
 }

@@ -1,6 +1,6 @@
-// inject.js - Lobotomy + Smart Shadow Beacon + Dynamic Config
+// inject.js - Pixel Beaconing + Structure Preservation v11
 (function () {
-    console.log('[Hunter] Stealth Engine: READY 🥷📡');
+    console.log('[Hunter] Stealth Engine v11: Pixel Beacon �️');
 
     // --- MONKEY PATCH HISTORY API ---
     const originalPushState = history.pushState;
@@ -19,11 +19,8 @@
         window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     });
 
-    // =============================================
-    // TOGGLE CONTROL (Điều khiển từ content.js)
-    // =============================================
+    // --- TOGGLE CONTROL ---
     let jsonCutEnabled = true;
-
     window.addEventListener('message', function (e) {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
@@ -31,21 +28,16 @@
         }
     });
 
-    // =============================================
-    // 📋 DYNAMIC CONFIG (Cập nhật từ xa)
-    // =============================================
+    // --- DYNAMIC CONFIG ---
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/hunter_config.json';
     const CONFIG_CACHE_KEY = 'hunter_config_cache';
     const CONFIG_CACHE_TIME = 6 * 60 * 60 * 1000; // 6 giờ
 
-    // Default keys (backup nếu fetch fail)
     let AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'];
-    let TRACKING_KEYS = ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint'];
+    let TRACKING_KEYS = ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'];
 
-    // Load config từ cache hoặc fetch mới
     const loadConfig = async () => {
         try {
-            // Check cache
             const cached = localStorage.getItem(CONFIG_CACHE_KEY);
             const cacheTime = localStorage.getItem(CONFIG_CACHE_KEY + '_time');
 
@@ -53,44 +45,53 @@
                 const config = JSON.parse(cached);
                 if (config.ad_keys) AD_KEYS = config.ad_keys;
                 if (config.tracking_keys) TRACKING_KEYS = config.tracking_keys;
-                console.log('[Config] 📋 Loaded from cache');
                 return;
             }
 
-            // Fetch mới
             const response = await fetch(CONFIG_URL + '?t=' + Date.now());
             if (response.ok) {
                 const config = await response.json();
                 if (config.ad_keys) AD_KEYS = config.ad_keys;
                 if (config.tracking_keys) TRACKING_KEYS = config.tracking_keys;
 
-                // Save cache
                 localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(config));
                 localStorage.setItem(CONFIG_CACHE_KEY + '_time', Date.now().toString());
                 console.log('[Config] 📋 Updated from GitHub');
             }
         } catch (e) {
-            console.log('[Config] Using default keys (fetch failed)');
+            console.log('[Config] Using default keys');
         }
     };
 
-    // Load config async (không block script)
     loadConfig();
 
     // =============================================
-    // 🥷 HÀM FAKE VIEW THÔNG MINH (SMART BEACON)
+    // 🖼️ PIXEL BEACON (Thay thế Fetch - Gửi kèm Cookies)
     // =============================================
+    const fireBeacon = (url) => {
+        if (!url || !url.startsWith('http')) return;
+
+        const img = new Image();
+        img.style.display = 'none';
+        img.style.width = '1px';
+        img.style.height = '1px';
+
+        // Thêm timestamp để tránh cache
+        const separator = url.includes('?') ? '&' : '?';
+        img.src = url + separator + '_t=' + Date.now();
+
+        // console.log(`%c[Pixel] 🎯 Ping: ...${url.slice(-30)}`, 'color: gray; font-size: 10px');
+    };
+
     const fakeAdViewing = (adData) => {
         if (!adData) return;
 
         try {
-            // Đào sâu tìm link Impression (Báo cáo đã hiển thị)
             const findImpressionUrls = (obj) => {
                 let urls = [];
                 if (!obj) return urls;
                 if (typeof obj === 'object') {
                     for (let key in obj) {
-                        // Dùng TRACKING_KEYS động thay vì hardcode
                         if (TRACKING_KEYS.includes(key)) {
                             const endpoints = obj[key];
                             if (Array.isArray(endpoints)) {
@@ -98,6 +99,8 @@
                                     if (ep.baseUrl) urls.push(ep.baseUrl);
                                     else if (typeof ep === 'string') urls.push(ep);
                                 });
+                            } else if (typeof endpoints === 'string') {
+                                urls.push(endpoints);
                             }
                         } else {
                             urls = urls.concat(findImpressionUrls(obj[key]));
@@ -110,36 +113,35 @@
             const trackingUrls = findImpressionUrls(adData);
 
             if (trackingUrls.length > 0) {
-                console.log(`%c[Beacon] 📡 Fake ${trackingUrls.length} lượt xem (jitter)...`, 'color: #00aaff');
+                console.log(`%c[Beacon] 📡 Fake ${trackingUrls.length} signals via PIXEL...`, 'color: #00aaff');
 
                 trackingUrls.forEach((url, index) => {
-                    if (url && url.startsWith('http')) {
-                        const delay = Math.floor(Math.random() * 800) + 100 + (index * 50);
-                        setTimeout(() => {
-                            fetch(url, {
-                                mode: 'no-cors',
-                                cache: 'no-cache',
-                                credentials: 'omit'
-                            }).catch(() => { });
-                        }, delay);
-                    }
+                    // Jitter random delay để giống người thật
+                    const delay = Math.floor(Math.random() * 500) + 100 + (index * 50);
+                    setTimeout(() => {
+                        fireBeacon(url);
+                    }, delay);
                 });
             }
-        } catch (e) {
-            // Lỗi fake không ảnh hưởng video chính
-        }
+        } catch (e) { }
     };
 
-    // Helper: Check xem data có chứa ads key nào không
+    // Helper: Check keys
     const hasAdKeys = (data) => {
         if (!data) return false;
         return AD_KEYS.some(key => data[key] !== undefined);
     };
 
-    // Helper: Xóa tất cả ad keys
-    const removeAdKeys = (data) => {
+    // =============================================
+    // 🧬 NEUTERING (Triệt sản thay vì Cắt bỏ)
+    // =============================================
+    const neuterAdKeys = (data) => {
         AD_KEYS.forEach(key => {
-            if (data[key]) delete data[key];
+            if (data[key]) {
+                // Thay vì delete (gây undefined), ta gán về mảng rỗng
+                // Player thấy "Có danh sách quảng cáo, nhưng trống" -> Không báo lỗi
+                data[key] = [];
+            }
         });
     };
 
@@ -150,11 +152,9 @@
 
     JSON.parse = function (text, reviver) {
         let data;
-
         try {
             data = originalParse(text, reviver);
         } catch (e) {
-            // Parse fail -> Return as-is, video vẫn chạy bình thường
             return originalParse(text, reviver);
         }
 
@@ -162,23 +162,18 @@
 
         try {
             if (hasAdKeys(data)) {
-                // 1. COPY DỮ LIỆU ĐỂ BÁO CÁO
+                // 1. Copy & Fake View
                 const adClone = {};
                 AD_KEYS.forEach(key => {
                     if (data[key]) adClone[key] = data[key];
                 });
-
-                // Gọi Fake View (Async - Không chặn luồng chính)
                 fakeAdViewing(adClone);
 
-                // 2. CẮT BỎ (LOBOTOMY)
-                console.log('%c[Lobotomy] 🔪 Ads cắt bỏ (stealth)', 'color: red; font-weight: bold');
-                removeAdKeys(data);
+                // 2. Triệt sản (Empty Array)
+                console.log('%c[Lobotomy] 🧬 Ads Neutered (Empty Array)', 'color: red;');
+                neuterAdKeys(data);
             }
-        } catch (e) {
-            // Lỗi cắt ads -> Trả về data gốc, Logic 2 sẽ xử lý
-            console.log('[Lobotomy] ⚠️ Cut failed, fallback to Logic 2');
-        }
+        } catch (e) { }
 
         return data;
     };
@@ -190,11 +185,9 @@
 
     Response.prototype.json = async function () {
         let data;
-
         try {
             data = await originalJson.call(this);
         } catch (e) {
-            // Fetch fail -> Return as-is
             return originalJson.call(this);
         }
 
@@ -207,11 +200,9 @@
                     if (data[key]) adClone[key] = data[key];
                 });
                 fakeAdViewing(adClone);
-                removeAdKeys(data);
+                neuterAdKeys(data);
             }
-        } catch (e) {
-            // Lỗi -> Logic 2 fallback
-        }
+        } catch (e) { }
 
         return data;
     };
@@ -223,7 +214,7 @@
         if (!jsonCutEnabled) return;
         try {
             if (window.ytInitialPlayerResponse) {
-                removeAdKeys(window.ytInitialPlayerResponse);
+                neuterAdKeys(window.ytInitialPlayerResponse);
             }
         } catch (e) { }
     };
@@ -231,5 +222,5 @@
     cleanInitialData();
     setTimeout(cleanInitialData, 500);
 
-    console.log('[Hunter] v9.3: Dynamic Config + Stealth Beacon ✅');
+    console.log('[Hunter] v11: Pixel Beacon + Neutering ✅');
 })();
