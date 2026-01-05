@@ -1,12 +1,21 @@
-// inject.js - v25: The Nuclear Option (Clean Slate)
+// inject.js - v26: The Cleaner (Mealbar Wipe)
 (function () {
-    console.log('[Hunter] Stealth Engine v25: The Nuclear Option ☢️');
+    console.log('[Hunter] Stealth Engine v26: The Cleaner 🧹');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer', 'playerErrorMessageRenderer']
+        // Thêm Mealbar vào danh sách đen
+        popup_keys: [
+            'upsellDialogRenderer',
+            'promoMessageRenderer',
+            'tvAppUpsellDialogRenderer',
+            'playerErrorMessageRenderer',
+            'mealbarPromoRenderer',       // <--- CON NÀY
+            'actionCompanionAdRenderer',
+            'statementBannerRenderer'
+        ]
     };
     let jsonCutEnabled = true;
 
@@ -111,6 +120,11 @@
             delete data.overlay.upsellDialogRenderer;
             console.log(`%c[Hunter] 🚫 Blocked Upsell Overlay`, 'color: red; font-weight: bold;');
         }
+        // Thêm check cho Mealbar
+        if (data.playerResponse?.auxiliaryUi?.messageRenderers?.mealbarPromoRenderer) {
+            delete data.playerResponse.auxiliaryUi.messageRenderers.mealbarPromoRenderer;
+            console.log(`%c[Hunter] 🚫 Blocked Mealbar`, 'color: red;');
+        }
     };
 
     const processYoutubeData = (data) => {
@@ -124,10 +138,9 @@
     };
 
     // --- 4. DATA TRAPS ---
-    // Bẫy cả Playability Status để tránh bị Soft Block
     const ensurePlayability = (data) => {
         if (data.playabilityStatus) {
-            if (data.playabilityStatus.status === 'LOGIN_REQUIRED') return; // Không can thiệp login
+            if (data.playabilityStatus.status === 'LOGIN_REQUIRED') return;
             if (data.playabilityStatus.status !== 'OK') {
                 console.log(`[Hunter] 🔓 Fixed Playability: ${data.playabilityStatus.status} -> OK`);
                 data.playabilityStatus.status = 'OK';
@@ -141,7 +154,6 @@
         Object.defineProperty(window, varName, {
             get: function () { return internalValue; },
             set: function (val) {
-                // Pre-process before assigning
                 if (val && val.playabilityStatus) ensurePlayability(val);
                 internalValue = processYoutubeData(val);
             },
@@ -161,7 +173,7 @@
             const data = originalParse(text, reviver);
             if (data) {
                 processYoutubeData(data);
-                if (data.playabilityStatus) ensurePlayability(data); // Double check logic block
+                if (data.playabilityStatus) ensurePlayability(data);
             }
             return data;
         } catch (e) { return originalParse(text, reviver); }
@@ -172,7 +184,7 @@
         try {
             const data = await originalJson.call(this);
             if (data) {
-                processYoutubeData(data); // Process in place
+                processYoutubeData(data);
                 if (data.playabilityStatus) ensurePlayability(data);
             }
             return data;
