@@ -1,9 +1,16 @@
-// content.js - v31.1: Project Phantom (Hunter Button Persistence)
+// content.js - v31.3: Respect All Settings
 (function () {
-    console.log('[Hunter] Initializing v31.1... 👻');
+    console.log('[Hunter] Initializing v31.3... 👻');
 
-    // --- STATE ---
-    let isHunterActive = true; // Default ON, will be overwritten by storage
+    // --- STATE (All settings, loaded from storage) ---
+    let settings = {
+        hunterActive: true,      // Master toggle (header button)
+        jsonCutEnabled: true,    // JSON pruning
+        offscreenEnabled: true,  // Fake beacon
+        logic2Enabled: true,     // Speed/Skip fallback
+        staticAdsEnabled: false  // Block static ads (default OFF)
+    };
+
     let SKIP_SELECTORS = [
         '.video-ads.ytp-ad-module',
         '.ytp-ad-player-overlay',
@@ -17,8 +24,6 @@
         'ytd-mealbar-promo-renderer'
     ];
 
-    let AD_SHOWING_SELECTORS = ['.ad-showing', '.ad-interrupting'];
-
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
         'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-display-ad-renderer)',
@@ -29,23 +34,51 @@
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 3600 * 1000;
 
-    // --- LOAD HUNTER STATE FROM STORAGE ---
-    chrome.storage.local.get(['hunterActive'], (result) => {
-        if (result.hunterActive !== undefined) {
-            isHunterActive = result.hunterActive;
+    // --- LOAD ALL SETTINGS FROM STORAGE ---
+    const loadSettings = () => {
+        chrome.storage.local.get([
+            'hunterActive',
+            'jsonCutEnabled',
+            'offscreenEnabled',
+            'logic2Enabled',
+            'staticAdsEnabled'
+        ], (result) => {
+            settings.hunterActive = result.hunterActive !== false;
+            settings.jsonCutEnabled = result.jsonCutEnabled !== false;
+            settings.offscreenEnabled = result.offscreenEnabled !== false;
+            settings.logic2Enabled = result.logic2Enabled !== false;
+            settings.staticAdsEnabled = result.staticAdsEnabled === true;
+
+            console.log('[Hunter] Settings loaded:', settings);
+            updateButtonAppearance();
+            syncWithInjectJS();
+        });
+    };
+
+    // Listen for storage changes (when user toggles in popup)
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'local') {
+            if (changes.hunterActive) settings.hunterActive = changes.hunterActive.newValue;
+            if (changes.jsonCutEnabled) settings.jsonCutEnabled = changes.jsonCutEnabled.newValue;
+            if (changes.offscreenEnabled) settings.offscreenEnabled = changes.offscreenEnabled.newValue;
+            if (changes.logic2Enabled) settings.logic2Enabled = changes.logic2Enabled.newValue;
+            if (changes.staticAdsEnabled) settings.staticAdsEnabled = changes.staticAdsEnabled.newValue;
+
+            console.log('[Hunter] Settings updated:', settings);
+            updateButtonAppearance();
+            syncWithInjectJS();
         }
-        // Update button if it exists
-        updateButtonAppearance();
-        // Sync with inject.js
-        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: isHunterActive }, '*');
-        console.log(`[Hunter] State loaded: ${isHunterActive ? 'ON' : 'OFF'}`);
     });
+
+    const syncWithInjectJS = () => {
+        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: settings.hunterActive && settings.jsonCutEnabled }, '*');
+    };
 
     const updateButtonAppearance = () => {
         const btn = document.getElementById('hunter-toggle-btn');
         if (btn) {
-            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
-            btn.style.background = isHunterActive ? '#cc0000' : '#666';
+            btn.textContent = settings.hunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+            btn.style.background = settings.hunterActive ? '#cc0000' : '#666';
         }
     };
 
@@ -54,8 +87,10 @@
         window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
     };
 
-    // --- CORE LOGIC ---
+    // --- CORE LOGIC (Respects Settings) ---
     const clickSkipButton = () => {
+        if (!settings.logic2Enabled) return false; // Respect setting
+
         const skipBtn = document.querySelector('.ytp-ad-skip-button') ||
             document.querySelector('.ytp-ad-skip-button-modern') ||
             document.querySelector('.videoAdUiSkipButton');
@@ -68,6 +103,8 @@
     };
 
     const fastForwardAd = () => {
+        if (!settings.logic2Enabled) return; // Respect setting
+
         const video = document.querySelector('video');
         if (video) {
             let isAd = false;
@@ -89,6 +126,8 @@
     };
 
     const removeStaticAds = () => {
+        if (!settings.staticAdsEnabled) return; // Respect setting
+
         STATIC_AD_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
             els.forEach(el => { el.style.display = 'none'; });
@@ -96,12 +135,11 @@
     };
 
     const runHunterLoop = () => {
-        if (!isHunterActive) return;
-        clickSkipButton();
-        if (document.querySelector('.ad-showing') || document.querySelector('.ad-interrupting')) {
-            fastForwardAd();
-        }
-        removeStaticAds();
+        if (!settings.hunterActive) return; // Master toggle
+
+        clickSkipButton();      // Only runs if logic2Enabled
+        fastForwardAd();        // Only runs if logic2Enabled 
+        removeStaticAds();      // Only runs if staticAdsEnabled
     };
 
     // --- INJECT SCRIPT ---
@@ -116,6 +154,7 @@
     // --- BACKGROUND COMMS ---
     window.addEventListener('message', (event) => {
         if (event.data.type === 'HUNTER_SEND_TO_BACKGROUND') {
+            if (!settings.offscreenEnabled) return; // Respect setting
             try {
                 chrome.runtime.sendMessage({
                     type: 'sendToOffscreen',
@@ -134,9 +173,8 @@
             const response = await fetch(SELECTORS_URL + '?t=' + Date.now());
             if (response.ok) {
                 const data = await response.json();
-                if (data.skip) SKIP_SELECTORS = data.skip;
-                if (data.adShowing) AD_SHOWING_SELECTORS = data.adShowing;
-                if (data.static) STATIC_AD_SELECTORS = data.static;
+                if (data.skipSelectors) SKIP_SELECTORS = data.skipSelectors;
+                if (data.adHideSelectors) STATIC_AD_SELECTORS = data.adHideSelectors;
 
                 localStorage.setItem('hunter_selectors', JSON.stringify(data));
                 localStorage.setItem('hunter_selectors_time', Date.now().toString());
@@ -145,7 +183,7 @@
         } catch (e) { }
     };
 
-    // --- HEADER BUTTON (WITH PERSISTENCE) ---
+    // --- HEADER BUTTON ---
     const createHeaderButton = () => {
         if (document.getElementById('hunter-toggle-btn')) return;
 
@@ -155,7 +193,7 @@
         const btn = document.createElement('button');
         btn.id = 'hunter-toggle-btn';
         btn.style.cssText = `
-            background: ${isHunterActive ? '#cc0000' : '#666'};
+            background: ${settings.hunterActive ? '#cc0000' : '#666'};
             color: white;
             border: none;
             padding: 8px 12px;
@@ -168,21 +206,15 @@
             z-index: 9999;
             position: relative;
         `;
-        btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+        btn.textContent = settings.hunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
 
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            isHunterActive = !isHunterActive;
-
-            // Save to storage (PERSISTENT)
-            chrome.storage.local.set({ hunterActive: isHunterActive });
-
-            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
-            btn.style.background = isHunterActive ? '#cc0000' : '#666';
-            console.log(`[Hunter] ${isHunterActive ? 'BẬT' : 'TẮT'} (Saved)`);
-
-            // Sync with inject.js
-            window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: isHunterActive }, '*');
+            settings.hunterActive = !settings.hunterActive;
+            chrome.storage.local.set({ hunterActive: settings.hunterActive });
+            updateButtonAppearance();
+            syncWithInjectJS();
+            console.log(`[Hunter] ${settings.hunterActive ? 'BẬT' : 'TẮT'} (Saved)`);
         });
 
         buttonsContainer.insertBefore(btn, buttonsContainer.firstChild);
@@ -190,6 +222,7 @@
     };
 
     // --- INIT ---
+    loadSettings();
     updateSelectorsFromGithub();
     injectScript();
 
@@ -198,10 +231,7 @@
 
     setInterval(runHunterLoop, 50);
 
-    // Observer for Header Button (Persistent)
-    const headerObserver = new MutationObserver(() => {
-        createHeaderButton();
-    });
+    const headerObserver = new MutationObserver(() => { createHeaderButton(); });
 
     const waitMasthead = setInterval(() => {
         const masthead = document.querySelector('ytd-masthead');
@@ -222,5 +252,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31.1: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v31.3: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
