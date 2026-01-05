@@ -298,7 +298,8 @@
 
     window.addEventListener('message', (e) => {
         if (e.data.type === 'HUNTER_DECOY_DONE') {
-            console.log('%c[Decoy] 🔄 Xong! Mở khóa Speedup.', 'color: cyan');
+            const status = logic2Enabled ? '(Logic 2 sẵn sàng)' : '(Logic 2 đang TẮT)';
+            console.log(`%c[Decoy] 🔄 Xong! ${status}`, 'color: cyan');
             isDecoyExecuting = false;
             // isDecoyPending đã set false lúc execute rồi
 

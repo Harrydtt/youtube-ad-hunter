@@ -54,7 +54,7 @@
                     });
 
                     window.postMessage({ type: 'HUNTER_DECOY_DONE' }, '*');
-                }, 200); // 150ms đôi khi hơi nhanh, 200ms an toàn hơn
+                }, 1000); // Tăng lên 1s để đảm bảo ads clear hoàn toàn
 
             } else {
                 console.log('%c[Decoy] ❌ Player API không sẵn sàng!', 'color: red');
