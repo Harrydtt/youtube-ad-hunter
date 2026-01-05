@@ -1,6 +1,6 @@
 // inject.js - v31: Remote Config + Refactored
 (function () {
-    console.log('[Hunter] Stealth Engine v31.3: Settings Respect 🛡️');
+    console.log('[Hunter] Stealth Engine v31.8: Skip Fix 🛡️');
 
     // --- 1. CONFIG & STATE ---
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
