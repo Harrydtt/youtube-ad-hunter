@@ -1,4 +1,4 @@
-// popup.js - Handle 4 toggles
+// popup.js - v31.1: Auto-toggle + Warning
 document.addEventListener('DOMContentLoaded', () => {
     const toggles = {
         jsoncut: document.getElementById('toggle-jsoncut'),
@@ -20,25 +20,51 @@ document.addEventListener('DOMContentLoaded', () => {
         toggles.static.checked = result.staticAdsEnabled === true; // Default OFF
     });
 
-    // Save on change - JSON Cut
+    // JSON Cut - Auto-toggle Offscreen
     toggles.jsoncut.addEventListener('change', () => {
-        chrome.storage.local.set({ jsonCutEnabled: toggles.jsoncut.checked });
-        console.log('JSON Cut:', toggles.jsoncut.checked ? 'ON' : 'OFF');
+        const isOn = toggles.jsoncut.checked;
+        chrome.storage.local.set({ jsonCutEnabled: isOn });
+        console.log('JSON Cut:', isOn ? 'ON' : 'OFF');
+
+        // Auto-toggle Offscreen to match
+        if (isOn && !toggles.offscreen.checked) {
+            toggles.offscreen.checked = true;
+            chrome.storage.local.set({ offscreenEnabled: true });
+            console.log('Offscreen auto-enabled with JSON Cut');
+        }
     });
 
-    // Save on change - Offscreen
+    // Offscreen - Warning if manually disabled
     toggles.offscreen.addEventListener('change', () => {
-        chrome.storage.local.set({ offscreenEnabled: toggles.offscreen.checked });
-        console.log('Offscreen:', toggles.offscreen.checked ? 'ON' : 'OFF');
+        const isOn = toggles.offscreen.checked;
+
+        if (!isOn) {
+            // Show warning
+            const confirmed = confirm(
+                '⚠️ CẢNH BÁO!\n\n' +
+                'Tắt Offscreen Beacon sẽ KHÔNG gửi fake view ads.\n' +
+                'Điều này có thể khiến YouTube phát hiện bạn đang dùng adblocker!\n\n' +
+                'Bạn có chắc chắn muốn tắt?'
+            );
+
+            if (!confirmed) {
+                // User cancelled, revert toggle
+                toggles.offscreen.checked = true;
+                return;
+            }
+        }
+
+        chrome.storage.local.set({ offscreenEnabled: isOn });
+        console.log('Offscreen:', isOn ? 'ON' : 'OFF');
     });
 
-    // Save on change - Logic 2
+    // Logic Speed/Skip
     toggles.logic2.addEventListener('change', () => {
         chrome.storage.local.set({ logic2Enabled: toggles.logic2.checked });
-        console.log('Logic 2:', toggles.logic2.checked ? 'ON' : 'OFF');
+        console.log('Logic Speed/Skip:', toggles.logic2.checked ? 'ON' : 'OFF');
     });
 
-    // Save on change - Static Ads
+    // Static Ads
     toggles.static.addEventListener('change', () => {
         chrome.storage.local.set({ staticAdsEnabled: toggles.static.checked });
         console.log('Static Ads Block:', toggles.static.checked ? 'ON' : 'OFF');

@@ -1,6 +1,6 @@
 // inject.js - v31: Remote Config + Refactored
 (function () {
-    console.log('[Hunter] Stealth Engine v31: Hardened 🛡️');
+    console.log('[Hunter] Stealth Engine v31.1: UI Polish 🛡️');
 
     // --- 1. CONFIG & STATE ---
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';

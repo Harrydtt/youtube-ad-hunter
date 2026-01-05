@@ -1,9 +1,9 @@
-// content.js - v30.1: Project Phantom (Fixing Header Button)
+// content.js - v31.1: Project Phantom (Hunter Button Persistence)
 (function () {
-    console.log('[Hunter] Initializing v30.1... 👻');
+    console.log('[Hunter] Initializing v31.1... 👻');
 
     // --- STATE ---
-    let isHunterActive = true;
+    let isHunterActive = true; // Default ON, will be overwritten by storage
     let SKIP_SELECTORS = [
         '.video-ads.ytp-ad-module',
         '.ytp-ad-player-overlay',
@@ -13,14 +13,11 @@
         'ytd-promoted-sparkles-web-renderer',
         'ytd-display-ad-renderer',
         'ytd-compact-promoted-video-renderer',
-        'ytd-miniplayer-toast',     // Added toast to skip
-        'ytd-mealbar-promo-renderer' // Added mealbar to skip
+        'ytd-miniplayer-toast',
+        'ytd-mealbar-promo-renderer'
     ];
 
-    let AD_SHOWING_SELECTORS = [
-        '.ad-showing',
-        '.ad-interrupting'
-    ];
+    let AD_SHOWING_SELECTORS = ['.ad-showing', '.ad-interrupting'];
 
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
@@ -30,7 +27,27 @@
     ];
 
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
-    const UPDATE_INTERVAL = 3600 * 1000; // 1 hour
+    const UPDATE_INTERVAL = 3600 * 1000;
+
+    // --- LOAD HUNTER STATE FROM STORAGE ---
+    chrome.storage.local.get(['hunterActive'], (result) => {
+        if (result.hunterActive !== undefined) {
+            isHunterActive = result.hunterActive;
+        }
+        // Update button if it exists
+        updateButtonAppearance();
+        // Sync with inject.js
+        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: isHunterActive }, '*');
+        console.log(`[Hunter] State loaded: ${isHunterActive ? 'ON' : 'OFF'}`);
+    });
+
+    const updateButtonAppearance = () => {
+        const btn = document.getElementById('hunter-toggle-btn');
+        if (btn) {
+            btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+            btn.style.background = isHunterActive ? '#cc0000' : '#666';
+        }
+    };
 
     // --- UTIL ---
     const checkAndTriggerNavigate = () => {
@@ -42,7 +59,6 @@
         const skipBtn = document.querySelector('.ytp-ad-skip-button') ||
             document.querySelector('.ytp-ad-skip-button-modern') ||
             document.querySelector('.videoAdUiSkipButton');
-
         if (skipBtn) {
             skipBtn.click();
             console.log('[Hunter] ⏩ Skipped Ad (Click)');
@@ -55,13 +71,9 @@
         const video = document.querySelector('video');
         if (video) {
             let isAd = false;
-            // Check based on class
             if (document.querySelector('.ad-showing') || document.querySelector('.ad-interrupting')) {
                 isAd = true;
             }
-            // Check based on duration (short videos < 60s often ads if unskippable logic fails)
-            // But be careful not to skip shorts / regular short videos. 
-            // Better rely on ad-container presence.
             const adModule = document.querySelector('.video-ads.ytp-ad-module');
             if (adModule && adModule.children.length > 0) {
                 isAd = true;
@@ -71,7 +83,6 @@
                 video.playbackRate = 16.0;
                 video.currentTime = video.duration;
                 console.log('[Hunter] ⏩ Fast Forwarded Ad');
-                // Force play
                 if (video.paused) video.play();
             }
         }
@@ -80,49 +91,29 @@
     const removeStaticAds = () => {
         STATIC_AD_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
-            els.forEach(el => {
-                el.style.display = 'none';
-                // console.log(`[Hunter] 🚮 Removed Static Ad: ${sel}`);
-            });
+            els.forEach(el => { el.style.display = 'none'; });
         });
     };
 
     const runHunterLoop = () => {
         if (!isHunterActive) return;
-
         clickSkipButton();
-
-        // Only fast forward if we are SURE it is an ad
         if (document.querySelector('.ad-showing') || document.querySelector('.ad-interrupting')) {
             fastForwardAd();
         }
-
         removeStaticAds();
     };
 
     // --- INJECT SCRIPT ---
     const injectScript = () => {
-        // inject.js is now injected via Manifest (MAIN world)
-        // We can just verify it is running or send config
-        // But for local development/updates, we might still want to ensure configuration is passed.
-
-        // Pass dynamic config to Main World
         const script = document.createElement('script');
         script.id = 'hunter-config-data';
         script.type = 'application/json';
-        script.textContent = JSON.stringify({
-            // Pass updated keys if needed
-        });
+        script.textContent = JSON.stringify({});
         (document.head || document.documentElement).appendChild(script);
-
-        // Load inject.js manually if strict mode off (optional, but manifest does it better)
-        // const s = document.createElement('script');
-        // s.src = chrome.runtime.getURL('inject.js');
-        // s.onload = () => s.remove();
-        // (document.head || document.documentElement).appendChild(s);
     };
 
-    // --- BACKGROUND COMMS (OFFSCREEN) ---
+    // --- BACKGROUND COMMS ---
     window.addEventListener('message', (event) => {
         if (event.data.type === 'HUNTER_SEND_TO_BACKGROUND') {
             try {
@@ -154,7 +145,7 @@
         } catch (e) { }
     };
 
-    // --- HEADER BUTTON (IMPROVED) ---
+    // --- HEADER BUTTON (WITH PERSISTENCE) ---
     const createHeaderButton = () => {
         if (document.getElementById('hunter-toggle-btn')) return;
 
@@ -174,19 +165,23 @@
             cursor: pointer;
             margin-right: 8px;
             transition: all 0.3s ease;
-            z-index: 9999; /* Force On Top */
-            position: relative; /* Ensure z-index works */
+            z-index: 9999;
+            position: relative;
         `;
         btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
 
         btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent bubbling
+            e.stopPropagation();
             isHunterActive = !isHunterActive;
+
+            // Save to storage (PERSISTENT)
+            chrome.storage.local.set({ hunterActive: isHunterActive });
+
             btn.textContent = isHunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
             btn.style.background = isHunterActive ? '#cc0000' : '#666';
-            console.log(`[Hunter] ${isHunterActive ? 'BẬT' : 'TẮT'}`);
+            console.log(`[Hunter] ${isHunterActive ? 'BẬT' : 'TẮT'} (Saved)`);
 
-            // Post message to inject.js to toggle JSON Cut
+            // Sync with inject.js
             window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: isHunterActive }, '*');
         });
 
@@ -208,17 +203,16 @@
         createHeaderButton();
     });
 
-    // Wait for body/masthead
     const waitMasthead = setInterval(() => {
         const masthead = document.querySelector('ytd-masthead');
         if (masthead) {
             headerObserver.observe(masthead, { childList: true, subtree: true });
-            createHeaderButton(); // Try immediately
+            createHeaderButton();
             clearInterval(waitMasthead);
         }
     }, 1000);
 
-    const observer = new MutationObserver(() => { }); // Placeholder if needed
+    const observer = new MutationObserver(() => { });
 
     const waitForPlayer = setInterval(() => {
         const player = document.querySelector('#movie_player');
@@ -228,5 +222,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v31.1: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
