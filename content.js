@@ -13,9 +13,23 @@
 
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
+        '#player-ads',
+        'ytd-ad-slot-renderer',
+        'ytd-banner-promo-renderer',
+        'ytd-statement-banner-renderer',
+        'ytd-in-feed-ad-layout-renderer',
+        'ytd-display-ad-renderer',
+        '.ytp-ad-overlay-container',
+        '.ytp-ad-text-overlay',
+        'ytd-promoted-sparkles-web-renderer',
+        'ytd-promoted-video-renderer',
+        'ytd-companion-slot-renderer',
+        '.yt-mealbar-promo-renderer',
+        'ytd-mealbar-promo-renderer',
+        '.ytd-merch-shelf-renderer',
+        'ytd-merch-shelf-renderer',
         'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-display-ad-renderer)',
-        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)',
-        '#player-ads'
+        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)'
     ];
 
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
