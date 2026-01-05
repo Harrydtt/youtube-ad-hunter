@@ -1,12 +1,11 @@
-// inject.js - v18: The De-Monetizer (Fix Client-Side Popup)
+// inject.js - v19: The Time Stopper (Trap Restored)
 (function () {
-    console.log('[Hunter] Stealth Engine v18: De-Monetizer �');
+    console.log('[Hunter] Stealth Engine v19: The Time Stopper ⏱️');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        // Các flag đánh dấu video có kiếm tiền -> Cần xóa
         monetization_flags: ['isMonetized', 'isCrawlable', 'showAds', 'allowBelowThePlayerCompanion'],
         preroll_indicators: ['PREROLL', '0', 0]
     };
@@ -28,7 +27,7 @@
         }
     });
 
-    // --- 2. BEACON SYSTEM (Giữ nguyên logic Offscreen xịn của ông) ---
+    // --- 2. BEACON SYSTEM ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
@@ -63,35 +62,24 @@
 
             const urls = findUrls(adData);
             if (urls.length > 0) {
-                // Ưu tiên Offscreen
                 sendToOffscreen(urls);
-                // Backup Pixel tại chỗ (cho chắc cốp)
                 urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 150));
-                console.log(`%c[Beacon] � Fake ${urls.length} impressions`, 'color: #00ff00');
             }
         } catch (e) { }
     };
 
-    // --- 3. DE-MONETIZATION LOGIC (FIX POPUP) ---
-    // Xóa dấu vết kiếm tiền trong Metadata
+    // --- 3. DE-MONETIZATION LOGIC ---
     const stripMonetization = (data) => {
-        // 1. Tắt cờ kiếm tiền trong videoDetails
         if (data.videoDetails) {
-            data.videoDetails.isMonetized = false; // QUAN TRỌNG NHẤT
-            if (data.videoDetails.allowRatings === false) data.videoDetails.allowRatings = true; // Fix phụ
+            data.videoDetails.isMonetized = false;
+            if (data.videoDetails.allowRatings === false) data.videoDetails.allowRatings = true;
         }
-
-        // 2. Xóa cấu hình DAI (Dynamic Ad Insertion)
         if (data.playerConfig && data.playerConfig.daiConfig) {
             data.playerConfig.daiConfig = null;
         }
-
-        // 3. Xóa nhịp tim kiểm tra Ads (Ad Heartbeat)
         if (data.adBreakHeartbeatParams) {
             delete data.adBreakHeartbeatParams;
         }
-
-        // 4. Chuyển trạng thái Playability (nếu bị dính cờ OK_WITH_ADS)
         if (data.playabilityStatus && data.playabilityStatus.status === 'OK_WITH_ADS') {
             data.playabilityStatus.status = 'OK';
         }
@@ -102,19 +90,15 @@
         if (!jsonCutEnabled || !data) return data;
 
         try {
-            // A. Fake View trước khi làm bất cứ gì
-            // (Phải lấy link tracking TRƯỚC khi xóa)
+            // A. Fake View
             const adClone = {};
             if (data.adPlacements) adClone.adPlacements = data.adPlacements;
             if (data.playerResponse?.adPlacements) adClone.nestedAds = data.playerResponse.adPlacements;
             if (data.playerAds) adClone.playerAds = data.playerAds;
 
-            // Chỉ fake view nếu tìm thấy ads
-            if (Object.keys(adClone).length > 0) {
-                fakeAdViewing(adClone);
-            }
+            if (Object.keys(adClone).length > 0) fakeAdViewing(adClone);
 
-            // B. Xóa sạch Ads (Không lọc nữa, xóa hết để đồng bộ với De-Monetization)
+            // B. Xóa sạch Ads
             if (data.adPlacements) data.adPlacements = [];
             if (data.playerAds) data.playerAds = [];
             if (data.adSlots) data.adSlots = [];
@@ -123,23 +107,32 @@
                 if (data.playerResponse.playerAds) data.playerResponse.playerAds = [];
             }
 
-            // C. Áp dụng De-Monetization (Để Player không thắc mắc tại sao Ads rỗng)
+            // C. De-Monetize
             stripMonetization(data);
 
-            console.log('%c[Hunter] ✨ Video De-Monetized Successfully', 'color: magenta; font-weight: bold;');
-
-        } catch (e) {
-            console.warn('[Hunter] Error:', e);
-        }
+        } catch (e) { console.warn('[Hunter] Error:', e); }
         return data;
     };
 
-    // --- 5. HOOKS (JSON & FETCH) ---
+    // --- 5. THE TRAP (Object.defineProperty) - CRITICAL RESTORATION ---
+    // Bắt dính biến ngay khi Player vừa mới định đọc nó
+    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
+    Object.defineProperty(window, 'ytInitialPlayerResponse', {
+        get: function () {
+            return _ytInitialPlayerResponse;
+        },
+        set: function (val) {
+            _ytInitialPlayerResponse = processYoutubeData(val);
+            console.log('[Hunter] 🪝 Trapped ytInitialPlayerResponse');
+        },
+        configurable: true
+    });
+
+    // --- 6. STANDARD HOOKS ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         try {
             const data = originalParse(text, reviver);
-            // Hook mọi gói tin có tiềm năng chứa ads hoặc metadata video
             if (data && (data.adPlacements || data.videoDetails || data.playerResponse)) {
                 return processYoutubeData(data);
             }
@@ -158,15 +151,11 @@
         } catch (e) { return originalJson.call(this); }
     };
 
-    // --- 6. CLEANUP INITIAL ---
-    const processInitial = () => {
-        if (window.ytInitialPlayerResponse) {
-            processYoutubeData(window.ytInitialPlayerResponse);
-        }
-    };
-    processInitial();
-    // Chạy lại vài lần để đảm bảo race condition
-    setTimeout(processInitial, 100);
+    // --- 7. CLEANUP INITIAL ---
+    if (window.ytInitialPlayerResponse) {
+        processYoutubeData(window.ytInitialPlayerResponse);
+        console.log('[Hunter] Processed existing ytInitialPlayerResponse');
+    }
 
     // History Patch
     const notify = () => window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
