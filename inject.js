@@ -1,13 +1,12 @@
-// inject.js - v22: The Diplomat (Smart Pruning + Anti-Popup)
+// inject.js - v23: The Terminator (Aggressive Preroll Cut)
 (function () {
-    console.log('[Hunter] Stealth Engine v22: The Diplomat 🎩');
+    console.log('[Hunter] Stealth Engine v23: The Terminator 🤖');
 
     // --- 1. CONFIG & STATE ---
     let CONFIG = {
         ad_keys: ['adPlacements', 'playerAds', 'adSlots', 'kidsAdPlacements', 'adBreakResponse'],
         tracking_keys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping'],
-        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer'],
-        preroll_indicators: ['PREROLL', '0', 0]
+        popup_keys: ['upsellDialogRenderer', 'promoMessageRenderer', 'tvAppUpsellDialogRenderer']
     };
     let jsonCutEnabled = true;
 
@@ -24,10 +23,11 @@
     window.addEventListener('message', (e) => {
         if (e.data && e.data.type === 'HUNTER_SET_JSONCUT') {
             jsonCutEnabled = e.data.enabled;
+            console.log(`%c[Terminator] ⚙️ Cut Mode: ${jsonCutEnabled}`, 'color: yellow');
         }
     });
 
-    // --- 2. BEACON SYSTEM (DIPLOMATIC CHANNEL) ---
+    // --- 2. BEACON SYSTEM ---
     const sendToOffscreen = (urls) => {
         if (!urls || urls.length === 0) return;
         window.postMessage({ type: 'HUNTER_SEND_TO_BACKGROUND', urls: urls }, '*');
@@ -64,36 +64,39 @@
             if (urls.length > 0) {
                 sendToOffscreen(urls);
                 urls.forEach((url, i) => setTimeout(() => fireBeacon(url), i * 150));
-                console.log(`%c[Diplomat] 🤝 Negotiated ${urls.length} fake views`, 'color: #00ffff');
             }
         } catch (e) { }
     };
 
-    // --- 3. CORE LOGIC: GENTLE PRUNING ---
+    // --- 3. CORE LOGIC: AGGRESSIVE PRUNING ---
     const processAdPlacements = (placements) => {
         if (!Array.isArray(placements) || placements.length === 0) return placements;
 
-        // Vòng lặp Ngoại giao: Chỉ cắt Preroll (gây phiền nhất), giữ Midroll (để Logic 2 xử lý)
-        // Việc giữ lại Midroll giúp cấu trúc JSON trông "thật" hơn -> Tránh Detect
         return placements.filter(p => {
             const renderer = p.adPlacementRenderer?.renderer?.adBreakRenderer || p.adPlacementRenderer;
             let isPreroll = false;
 
-            if (renderer?.adBreakType && CONFIG.preroll_indicators.includes(renderer.adBreakType)) isPreroll = true;
-            if (p.adPlacementRenderer?.config?.adPlacementConfig?.kind && CONFIG.preroll_indicators.includes(p.adPlacementRenderer.config.adPlacementConfig.kind)) isPreroll = true;
+            // 1. Check Type Explicit
+            const adType = renderer?.adBreakType || p.adPlacementRenderer?.config?.adPlacementConfig?.kind;
+            if (adType === 'PREROLL' || adType === '0') isPreroll = true;
 
-            // Check thời gian
+            // 2. Check Time Offset (Aggressive: < 5000ms is Preroll)
             const timeOffset = p.adPlacementRenderer?.timeOffsetMilliseconds;
-            if (CONFIG.preroll_indicators.includes(timeOffset)) isPreroll = true;
-
-            if (isPreroll) {
-                console.log('%c[Hunter] � Preroll removed silently', 'color: gray');
-                fakeAdViewing(p); // Nộp thuế trước khi cắt
-                return false;
+            if (timeOffset !== undefined) {
+                const timeVal = parseInt(timeOffset);
+                if (!isNaN(timeVal) && timeVal < 5000) isPreroll = true;
             }
 
-            // Midroll giữ lại -> Không xóa -> Integrity Check OK
-            return true;
+            console.log(`[Item Check] Type: ${adType}, Time: ${timeOffset} -> Preroll? ${isPreroll}`);
+
+            if (isPreroll) {
+                console.log('%c[Terminator] 🔪 Preroll Executed', 'color: red; font-weight: bold;');
+                fakeAdViewing(p);
+                return false; // Kill
+            }
+
+            console.log('%c[Terminator] ⏩ Midroll Spared', 'color: orange');
+            return true; // Keep
         });
     };
 
@@ -112,10 +115,7 @@
         if (!jsonCutEnabled || !data) return data;
 
         try {
-            // 1. Ngoại giao (Fake View) cho toàn bộ
-            // (Code cũ copy adClone ở đây, nhưng giờ ta làm trong processAdPlacements cho chính xác từng item)
-
-            // 2. Xử lý Mảng AdPlacements (Chiến thuật v17)
+            // Process AdPlacements
             if (data.adPlacements) {
                 data.adPlacements = processAdPlacements(data.adPlacements);
             }
@@ -123,11 +123,12 @@
                 data.playerResponse.adPlacements = processAdPlacements(data.playerResponse.adPlacements);
             }
 
-            // 3. Xử lý AdSlots / PlayerAds (Những cái râu ria xóa hết cũng được)
+            // Kill weak ads
             if (data.playerAds) { fakeAdViewing(data.playerAds); data.playerAds = []; }
+            if (data.playerResponse?.playerAds) { fakeAdViewing(data.playerResponse.playerAds); data.playerResponse.playerAds = []; }
             if (data.adSlots) { fakeAdViewing(data.adSlots); data.adSlots = []; }
 
-            // 4. Diệt Popup (Lưới an toàn)
+            // Anti-Popup
             stripPopups(data);
             if (data.playerResponse) stripPopups(data.playerResponse);
 
@@ -135,7 +136,7 @@
         return data;
     };
 
-    // --- 4. DATA TRAPS ---
+    // --- 4. TRAPS ---
     const trapVariable = (varName) => {
         let internalValue = window[varName];
         Object.defineProperty(window, varName, {
@@ -174,7 +175,6 @@
         } catch (e) { return originalJson.call(this); }
     };
 
-    // --- 6. CLEANUP ---
     if (window.ytInitialPlayerResponse) processYoutubeData(window.ytInitialPlayerResponse);
     if (window.ytInitialData) processYoutubeData(window.ytInitialData);
 
