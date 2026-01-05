@@ -36,10 +36,10 @@
                 player.loadVideoById(e.data.decoyId);
 
                 setTimeout(function () {
-                    console.log('%c[Decoy] 🔄 Quay về: ' + e.data.targetId, 'color: cyan');
+                    console.log('%c[Decoy] 🔄 Đã chờ 3s, quay về: ' + e.data.targetId, 'color: cyan');
                     player.loadVideoById({ 'videoId': e.data.targetId, 'startSeconds': 0 });
                     window.postMessage({ type: 'HUNTER_DECOY_DONE' }, '*');
-                }, 600);
+                }, 3000);
             } else {
                 console.log('%c[Decoy] ❌ Player không có loadVideoById!', 'color: red');
             }
