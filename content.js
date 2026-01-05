@@ -1,6 +1,6 @@
-// content.js - v31.8: Fixed Skip Button Logic
+// content.js - v31.9: Critical Message Fix
 (function () {
-    console.log('[Hunter] Initializing v31.8... 👻');
+    console.log('[Hunter] Initializing v31.9... 👻');
 
     // --- STATE (All settings, loaded from storage) ---
     let settings = {
@@ -265,5 +265,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v31.8: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Hunter] v31.9: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
 })();
