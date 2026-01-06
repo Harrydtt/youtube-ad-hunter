@@ -62,15 +62,8 @@
             console.log('[Focus] Settings loaded:', settings);
             updateButtonAppearance();
 
-            // CRITICAL: Sync state BEFORE injecting script
+            // Sync filter state with inject.js (for subsequent requests)
             syncWithInjectJS();
-
-            // CRITICAL: Only inject if JSON Cut is enabled
-            if (settings.hunterActive && settings.jsonCutEnabled) {
-                injectScript();
-            } else {
-                console.log('[Focus] JSON Cut disabled, skipping inject.js');
-            }
         });
     };
 

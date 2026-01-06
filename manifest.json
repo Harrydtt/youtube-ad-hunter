@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Focus Mode",
-  "version": "35.4",
+  "version": "35.5",
   "description": "Enhance your YouTube viewing experience with distraction-free playback and content optimization",
   "permissions": [
     "scripting",
@@ -23,6 +23,16 @@
     }
   },
   "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "inject.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": [
         "*://*.youtube.com/*"
