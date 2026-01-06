@@ -1,6 +1,6 @@
-// content.js - v33.0: YouTube Focus Mode
+// content.js - v33.2: Fixed Tracking & Filter
 (function () {
-    console.log('[Focus] Initializing v33.0... 🎯');
+    console.log('[Focus] Initializing v33.2... 👻');
 
     // --- STATE (Settings loaded from storage) ---
     let settings = {

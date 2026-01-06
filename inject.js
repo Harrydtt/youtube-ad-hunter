@@ -1,6 +1,6 @@
-// inject.js - v33.0: YouTube Focus Mode - Content Optimizer
+// inject.js - v33.2: YouTube Focus Mode - Content Optimizer
 (function () {
-    console.log('[Focus] Content Engine v33.0 🎯');
+    console.log('[Focus] Content Engine v33.2 🎯');
 
     // Configuration
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
@@ -85,6 +85,35 @@
         return value;
     };
 
+    // Tracking URL patterns
+    const trackingPatterns = [
+        'googlevideo.com/ptracking',
+        'youtube.com/pagead',
+        'youtube.com/api/stats/ads',
+        'youtube.com/api/stats/playback',
+        'doubleclick.net',
+        '/pagead/adview',
+        '/ptracking?',
+        '/api/stats/'
+    ];
+
+    // Extract tracking URLs from object
+    const extractTrackingUrls = (obj, urls = [], depth = 0) => {
+        if (!obj || depth > 10) return urls;
+        if (typeof obj === 'string') {
+            for (const pattern of trackingPatterns) {
+                if (obj.includes(pattern)) {
+                    urls.push(obj);
+                    break;
+                }
+            }
+        }
+        if (typeof obj === 'object') {
+            Object.values(obj).forEach(val => extractTrackingUrls(val, urls, depth + 1));
+        }
+        return urls;
+    };
+
     // JSON.parse interceptor
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
@@ -127,24 +156,14 @@
 
         try {
             // Extract tracking URLs before filtering
-            const urls = [];
-            const extractUrls = (obj) => {
-                if (!obj) return;
-                if (typeof obj === 'string' && obj.includes('googlevideo.com/ptracking')) {
-                    urls.push(obj);
-                }
-                if (typeof obj === 'object') {
-                    Object.values(obj).forEach(extractUrls);
-                }
-            };
-
-            if (result.playerResponse) extractUrls(result.playerResponse);
+            const urls = extractTrackingUrls(result);
 
             if (urls.length > 0) {
                 console.log(`[Focus DEBUG] 📡 Found ${urls.length} tracking URLs, sending to background`);
                 window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls }, '*');
             }
 
+            // Filter content
             let keysRemoved = [];
             const filterContentWithLog = (key, value) => {
                 if (CONFIG.adJsonKeys.includes(key)) {
