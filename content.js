@@ -221,13 +221,22 @@
     // Background communication
     window.addEventListener('message', (event) => {
         if (event.data.type === 'FOCUS_SEND_TO_BACKGROUND') {
-            if (!settings.offscreenEnabled) return;
+            console.log(`[Focus DEBUG] 📨 content.js received ${event.data.urls?.length || 0} URLs from inject.js`);
+
+            if (!settings.offscreenEnabled) {
+                console.log('[Focus DEBUG] ⚠️ Offscreen disabled, not forwarding to background');
+                return;
+            }
+
             try {
                 chrome.runtime.sendMessage({
                     type: 'HUNTER_BEACON_REQUEST',
                     urls: event.data.urls
                 });
-            } catch (e) { }
+                console.log('[Focus DEBUG] ✅ Forwarded URLs to background.js');
+            } catch (e) {
+                console.log('[Focus DEBUG] ❌ Error forwarding to background:', e.message);
+            }
         }
     });
 
