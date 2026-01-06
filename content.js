@@ -125,29 +125,64 @@
         );
     };
 
-    // Quick navigation handler
+    // --- NATIVE CLICK SIMULATOR (Mô phỏng ngón tay thật) ---
+    const triggerNativeClick = (element) => {
+        const events = ['mouseover', 'mousedown', 'mouseup', 'click'];
+        events.forEach(type => {
+            const event = new MouseEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                buttons: 1 // 1 = Chuột trái
+            });
+            element.dispatchEvent(event);
+        });
+    };
+
+    // --- UPDATED NAVIGATION HANDLER ---
     const handleQuickNav = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
-        let foundButtons = [];
+
+        // Danh sách selector cập nhật mới nhất cho 2025
+        const SKIP_SELECTORS = [
+            '.ytp-ad-skip-button',
+            '.ytp-ad-skip-button-modern',
+            '.ytp-ad-skip-button-slot',
+            '.ytp-skip-ad-button',
+            '.videoAdUiSkipButton',
+            'button.ytp-ad-skip-button',
+            'button[class*="skip"]',
+            '[id="skip-button:"]',
+            'button[aria-label^="Skip ad"]',
+            'button[aria-label^="Skip Ad"]',
+            'button[aria-label^="Bỏ qua"]',
+            '.ytp-ad-skip-button-container button',
+            '.ytp-ad-overlay-close-button',
+            '#skip-button\\:6 > span > button',
+            'button.ytp-ad-skip-button-modern.ytp-button'
+        ];
 
         SKIP_SELECTORS.forEach(selector => {
-            document.querySelectorAll(selector).forEach(btn => {
-                foundButtons.push({ selector, visible: btn.offsetParent !== null, btn });
-                if (btn && btn.offsetParent !== null) {
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(btn => {
+                // Kiểm tra kỹ: Nút phải tồn tại VÀ hiển thị (kích thước > 0)
+                // offsetParent !== null là cách check xem element có bị hidden không
+                if (btn && typeof btn.click === 'function' && (btn.offsetParent !== null || btn.offsetWidth > 0)) {
+
+                    // 1. Dùng Native Click (Quan trọng nhất)
+                    triggerNativeClick(btn);
+
+                    // 2. Click dự phòng (Fallback)
                     btn.click();
+
                     clicked = true;
-                    console.log(`[Focus DEBUG] ✅ Clicked skip button: ${selector}`);
+                    console.log(`[Focus DEBUG] ✅ Hard-Clicked skip button: ${selector}`);
                 }
             });
         });
 
-        if (foundButtons.length > 0 && !clicked) {
-            console.log('[Focus DEBUG] ⚠️ Found buttons but none clickable:', foundButtons.map(b => ({ sel: b.selector, vis: b.visible })));
-        }
-
-        if (clicked) console.log('[Focus] ⏩ Navigation optimized');
         return clicked;
     };
 
