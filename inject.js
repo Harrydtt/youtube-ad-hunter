@@ -103,6 +103,24 @@
         if (!filterEnabled || !data) return data;
 
         try {
+            // DEBUG: Log cấu trúc data để xem YouTube đang gửi gì
+            if (data.videoDetails || data.playabilityStatus || data.adPlacements || data.playerAds) {
+                console.log('[Focus DEBUG] 📋 YouTube Data Structure:', {
+                    hasVideoDetails: !!data.videoDetails,
+                    isMonetized: data.videoDetails?.isMonetized,
+                    hasPlayabilityStatus: !!data.playabilityStatus,
+                    playabilityStatus: data.playabilityStatus?.status,
+                    hasAdPlacements: !!data.adPlacements,
+                    adPlacementsCount: data.adPlacements?.length || 0,
+                    hasPlayerAds: !!data.playerAds,
+                    playerAdsCount: data.playerAds?.length || 0,
+                    hasAdSlots: !!data.adSlots,
+                    hasAdBreakHeartbeat: !!data.adBreakHeartbeatParams,
+                    hasAdSignals: !!data.adSignals,
+                    keys: Object.keys(data).filter(k => k.toLowerCase().includes('ad') || k.toLowerCase().includes('monetiz'))
+                });
+            }
+
             // Bước 1: De-Monetize (Quan trọng nhất)
             sanitizeData(data);
 
