@@ -47,6 +47,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 });
 
                 console.log(`[Background] Sent ${msg.urls.length} URLs for processing`);
+                console.log('[Background] URLs:', msg.urls);
             } catch (e) {
                 console.log('[Background] Processing error:', e);
             }
