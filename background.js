@@ -1,4 +1,4 @@
-// background.js - Service Worker for Background Processing
+// background.js - v35.0 Service Worker for Background Processing
 let creating = null;
 
 // Create offscreen document if needed

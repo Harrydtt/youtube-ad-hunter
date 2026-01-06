@@ -1,6 +1,6 @@
-// content.js - v33.8: Real URL Relay
+// content.js - v35.0: Extract-Before-Cut + Popup Cleaner
 (function () {
-    console.log('[Focus] Initializing v33.8... 👻');
+    console.log('[Focus] Initializing v35.0... 👻');
 
     // --- STATE (Settings loaded from storage) ---
     let settings = {
@@ -179,19 +179,17 @@
             });
         }
 
-        // Anti-adblock popups - TEMPORARILY DISABLED FOR TESTING
-        // Uncomment this section after testing to enable popup hiding
-        /*
+        // Anti-adblock popups - ALWAYS remove (most important for user experience)
         ANTI_ADBLOCK_SELECTORS.forEach(sel => {
-            const els = document.querySelectorAll(sel);
-            els.forEach(el => {
-                if (el.style.display !== 'none') {
-                    el.style.display = 'none';
-                    console.log(`[Focus DEBUG] 🚫 Hidden anti-adblock popup: ${sel}`);
-                }
+            document.querySelectorAll(sel).forEach(el => {
+                el.remove();
+                console.log(`[Focus] 🚫 Removed anti-adblock: ${sel}`);
             });
         });
-        */
+
+        // Also remove feedback dialog if present
+        const dialog = document.querySelector('tp-yt-paper-dialog');
+        if (dialog && dialog.id === 'feedback-dialog') dialog.remove();
     };
 
     // Main loop

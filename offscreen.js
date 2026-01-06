@@ -1,12 +1,15 @@
-// offscreen.js - Background Beacon Processor v33.5
-console.log('[Offscreen] Processor initialized v33.5');
+// offscreen.js - v35.0: Template URL Processor with Placeholders
+console.log('[Offscreen] Processor v35.0 initialized');
 
-// Fill in placeholder values in tracking URLs
+// Fill placeholder values in tracking URLs to convert Template -> Real
 const fillPlaceholders = (url) => {
     const now = Date.now();
     const viewability = 'sv%3D400%26v%3D20241201%26cb%3D1';
 
     return url
+        // Timestamps
+        .replace(/\[TIMESTAMP\]/gi, String(now))
+        .replace(/%5BTIMESTAMP%5D/gi, String(now))
         // Viewability
         .replace(/\[VIEWABILITY\]/gi, viewability)
         .replace(/%5BVIEWABILITY%5D/gi, viewability)
@@ -15,7 +18,7 @@ const fillPlaceholders = (url) => {
         // Click timing
         .replace(/\[CLICK_MS\]/gi, String(Math.floor(Math.random() * 5000) + 1000))
         .replace(/%5BCLICK_MS%5D/gi, String(Math.floor(Math.random() * 5000) + 1000))
-        // Campaign/ad params
+        // Ad params
         .replace(/\[AD_CPN\]/gi, 'focus')
         .replace(/%5BAD_CPN%5D/gi, 'focus')
         .replace(/\[AD_MT\]/gi, String(Math.floor(Math.random() * 30000)))
@@ -28,143 +31,71 @@ const fillPlaceholders = (url) => {
         // Click source
         .replace(/\[CLICK_SOURCE\]/gi, '1')
         .replace(/%5BCLICK_SOURCE%5D/gi, '1')
-        // Last click time
+        // Last action time
         .replace(/\[LACT\]/gi, String(now))
         .replace(/%5BLACT%5D/gi, String(now))
-        // Error code (use 0 for no error)
+        // Error code
         .replace(/\[ERRORCODE\]/gi, '0')
-        .replace(/%5BERRORCODE%5D/gi, '0')
-        // Timestamps
-        .replace(/\[TIMESTAMP\]/gi, String(now))
-        .replace(/%5BTIMESTAMP%5D/gi, String(now));
+        .replace(/%5BERRORCODE%5D/gi, '0');
 };
 
-// All pagead/tracking URLs are valid - don't filter too strictly
-const isTrackingUrl = (url) => {
-    return url.includes('pagead') ||
-        url.includes('ptracking') ||
-        url.includes('doubleclick') ||
-        url.includes('googleads') ||
-        url.includes('googlevideo') ||
-        url.includes('api/stats');
-};
-
-// Categorize URL for timing
+// Categorize URL for timing simulation
 const categorizeUrl = (url) => {
     if (url.includes('start')) return 'start';
-    if (url.includes('firstQuartile')) return 'firstQuartile';
+    if (url.includes('firstQuartile') || url.includes('first_quartile')) return 'firstQuartile';
     if (url.includes('midpoint')) return 'midpoint';
-    if (url.includes('thirdQuartile')) return 'thirdQuartile';
+    if (url.includes('thirdQuartile') || url.includes('third_quartile')) return 'thirdQuartile';
     if (url.includes('complete')) return 'complete';
     if (url.includes('impression')) return 'impression';
-    if (url.includes('view')) return 'view';
     return 'unknown';
 };
 
-// Get delay based on category
-const getDelayForCategory = (category, index) => {
-    const jitter = Math.random() * 2000;
-    const baseDelay = index * 100; // Stagger URLs
-    const categoryDelay = {
-        'start': 0,
-        'impression': 500,
-        'view': 1000,
-        'firstQuartile': 8000,
-        'midpoint': 16000,
-        'thirdQuartile': 24000,
-        'complete': 30000,
-        'unknown': Math.random() * 3000
-    };
-    return baseDelay + (categoryDelay[category] || 0) + jitter;
-};
-
-// Process URLs
+// Process URLs with realistic timing
 const processUrls = (urls) => {
     if (!urls || urls.length === 0) return;
 
-    console.log(`[Offscreen] Received ${urls.length} URLs to process`);
+    console.log(`[Offscreen] 📥 Received ${urls.length} template URLs to process`);
 
-    let processedCount = 0;
-    let skippedCount = 0;
+    let sentCount = 0;
 
     urls.forEach((originalUrl, index) => {
-        // Fill in placeholders
+        // 1. Fill placeholders to create "real" URL
         const url = fillPlaceholders(originalUrl);
 
-        // Skip non-tracking URLs
-        if (!isTrackingUrl(url)) {
-            skippedCount++;
-            return;
-        }
+        // Fix URL if starts with //
+        const fullUrl = url.startsWith('//') ? 'https:' + url : url;
 
+        // 2. Calculate delay for realistic timing
         const category = categorizeUrl(url);
-        const delay = getDelayForCategory(category, index);
-
-        processedCount++;
+        const baseDelay = index * 200; // Stagger
+        const jitter = Math.random() * 500;
+        const delay = baseDelay + jitter;
 
         setTimeout(() => {
             try {
-                // Send using Image (most reliable for tracking pixels)
+                // 3. Ping using Image (most reliable for tracking pixels)
                 const img = new Image();
-                img.onload = () => console.log(`[Offscreen] ✅ Sent: ${category}`);
-                img.onerror = () => {
-                    // Try fetch as fallback
-                    fetch(url, { mode: 'no-cors', credentials: 'include' })
-                        .then(() => console.log(`[Offscreen] ✅ Sent (fetch): ${category}`))
-                        .catch(() => console.log(`[Offscreen] ❌ Failed: ${category}`));
-                };
-                img.src = url;
+                img.onload = () => console.log(`[Offscreen] ✅ Ping OK: ${category}`);
+                img.onerror = () => console.log(`[Offscreen] 📡 Ping sent: ${category}`); // Error is expected for some domains
+                img.src = fullUrl;
+                sentCount++;
             } catch (e) {
                 console.log(`[Offscreen] ❌ Error: ${e.message}`);
             }
         }, delay);
     });
 
-    console.log(`[Offscreen] Queued ${processedCount} URLs, skipped ${skippedCount}`);
+    console.log(`[Offscreen] ⏳ Queued ${urls.length} pings with staggered timing`);
 };
 
-// Replay a single REAL URL immediately
-const replaySingleUrl = (url, originalMethod) => {
-    // Fix URL if it starts with //
-    const fullUrl = url.startsWith('//') ? 'https:' + url : url;
-
-    console.log(`[Offscreen] 🚀 Replaying REAL URL (${originalMethod}):`, fullUrl.substring(0, 120) + '...');
-
-    // Use fetch for replay (most reliable from extension context)
-    fetch(fullUrl, {
-        method: 'GET',
-        mode: 'no-cors',
-        credentials: 'include',
-        cache: 'no-store'
-    })
-        .then(() => {
-            console.log(`[Offscreen] ✅ REAL URL replayed successfully!`);
-        })
-        .catch((err) => {
-            console.log(`[Offscreen] ⚠️ Replay fetch error (expected with no-cors):`, err.message);
-            // Try with Image as fallback
-            const img = new Image();
-            img.src = fullUrl;
-            console.log(`[Offscreen] 🖼️ Fallback: sent via Image`);
-        });
-};
-
-// Listen for messages
+// Listen for messages from background
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'PROCESS_BEACONS') {
-        console.log('[Offscreen] Received PROCESS_BEACONS message');
+        console.log('[Offscreen] 🎯 Received PROCESS_BEACONS');
         processUrls(msg.urls);
         sendResponse({ received: true, count: msg.urls?.length || 0 });
     }
-
-    // Handle REAL URL replay
-    if (msg.type === 'REPLAY_SINGLE_URL') {
-        console.log('[Offscreen] 🎯 Received REAL URL to replay');
-        replaySingleUrl(msg.url, msg.method);
-        sendResponse({ replayed: true, url: msg.url.substring(0, 50) + '...' });
-    }
-
-    return true; // Keep channel open for async response
+    return true; // Keep channel open
 });
 
-console.log('[Offscreen] Ready to receive messages (v33.8)');
+console.log('[Offscreen] v35.0 Ready ✅');
