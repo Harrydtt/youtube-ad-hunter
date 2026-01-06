@@ -1,40 +1,52 @@
-// offscreen.js - Background Beacon Processor v33.4
-console.log('[Offscreen] Processor initialized v33.4');
+// offscreen.js - Background Beacon Processor v33.5
+console.log('[Offscreen] Processor initialized v33.5');
 
 // Fill in placeholder values in tracking URLs
 const fillPlaceholders = (url) => {
     const now = Date.now();
-    const viewability = 'sv%3D400%26v%3D20241201%26cb%3D1'; // Viewability params
+    const viewability = 'sv%3D400%26v%3D20241201%26cb%3D1';
 
     return url
+        // Viewability
         .replace(/\[VIEWABILITY\]/gi, viewability)
         .replace(/%5BVIEWABILITY%5D/gi, viewability)
         .replace(/\[GOOGLE_VIEWABILITY\]/gi, viewability)
         .replace(/%5BGOOGLE_VIEWABILITY%5D/gi, viewability)
+        // Click timing
         .replace(/\[CLICK_MS\]/gi, String(Math.floor(Math.random() * 5000) + 1000))
         .replace(/%5BCLICK_MS%5D/gi, String(Math.floor(Math.random() * 5000) + 1000))
-        .replace(/\[AD_CPN\]/gi, 'focusMode')
-        .replace(/%5BAD_CPN%5D/gi, 'focusMode')
+        // Campaign/ad params
+        .replace(/\[AD_CPN\]/gi, 'focus')
+        .replace(/%5BAD_CPN%5D/gi, 'focus')
         .replace(/\[AD_MT\]/gi, String(Math.floor(Math.random() * 30000)))
         .replace(/%5BAD_MT%5D/gi, String(Math.floor(Math.random() * 30000)))
+        // User agent hints
         .replace(/\[UACH\]/gi, '')
         .replace(/%5BUACH%5D/gi, '')
+        .replace(/\[UACH_M\]/gi, '')
+        .replace(/%5BUACH_M%5D/gi, '')
+        // Click source
         .replace(/\[CLICK_SOURCE\]/gi, '1')
-        .replace(/%5BCLICK_SOURCE%5D/gi, '1');
+        .replace(/%5BCLICK_SOURCE%5D/gi, '1')
+        // Last click time
+        .replace(/\[LACT\]/gi, String(now))
+        .replace(/%5BLACT%5D/gi, String(now))
+        // Error code (use 0 for no error)
+        .replace(/\[ERRORCODE\]/gi, '0')
+        .replace(/%5BERRORCODE%5D/gi, '0')
+        // Timestamps
+        .replace(/\[TIMESTAMP\]/gi, String(now))
+        .replace(/%5BTIMESTAMP%5D/gi, String(now));
 };
 
-// Filter URLs that are valid for tracking
-const isValidTrackingUrl = (url) => {
-    // Skip URLs that still have unfillable placeholders
-    if (url.includes('[') && url.includes(']')) return false;
-    if (url.includes('%5B') && url.includes('%5D')) return false;
-
-    // Must be a tracking URL
+// All pagead/tracking URLs are valid - don't filter too strictly
+const isTrackingUrl = (url) => {
     return url.includes('pagead') ||
         url.includes('ptracking') ||
         url.includes('doubleclick') ||
         url.includes('googleads') ||
-        url.includes('googlevideo');
+        url.includes('googlevideo') ||
+        url.includes('api/stats');
 };
 
 // Categorize URL for timing
@@ -79,8 +91,8 @@ const processUrls = (urls) => {
         // Fill in placeholders
         const url = fillPlaceholders(originalUrl);
 
-        // Skip invalid URLs
-        if (!isValidTrackingUrl(url)) {
+        // Skip non-tracking URLs
+        if (!isTrackingUrl(url)) {
             skippedCount++;
             return;
         }
