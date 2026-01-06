@@ -1,6 +1,6 @@
-// content.js - v35.0: Extract-Before-Cut + Popup Cleaner
+// content.js - v35.3: Extract-Before-Cut + Popup Cleaner
 (function () {
-    console.log('[Focus] Initializing v35.0... 👻');
+    console.log('[Focus] Initializing v35.3... 👻');
 
     // --- STATE (Settings loaded from storage) ---
     let settings = {
@@ -138,11 +138,16 @@
         });
     };
 
-    // --- UPDATED NAVIGATION HANDLER (Aggressive Skip) ---
+    // --- UPDATED NAVIGATION HANDLER (Aggressive Skip & Anti-Spam) ---
+    let lastLogTime = 0;
     const handleQuickNav = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
+
+        // 1. Scope to Player ONLY
+        const player = document.querySelector('.html5-video-player');
+        if (!player) return false;
 
         // Danh sách selector cập nhật mới nhất cho 2025
         const SKIP_SELECTORS = [
@@ -152,20 +157,24 @@
             '.ytp-skip-ad-button',
             '.videoAdUiSkipButton',
             'button.ytp-ad-skip-button',
-            'button[class*="skip"]',
             '[id="skip-button:"]',
             'button[aria-label^="Skip ad"]',
             'button[aria-label^="Skip Ad"]',
             'button[aria-label^="Bỏ qua"]',
             '.ytp-ad-skip-button-container button',
             '.ytp-ad-overlay-close-button',
+            '.ytp-ad-next-button', // Ad Pod: Skip to next
+            'button[data-visual-id="5"]', // Common ID for skip
             '#skip-button\\:6 > span > button',
             'button.ytp-ad-skip-button-modern.ytp-button'
         ];
 
+        const clickedElements = new Set();
         SKIP_SELECTORS.forEach(selector => {
-            const buttons = document.querySelectorAll(selector);
+            const buttons = player.querySelectorAll(selector);
             buttons.forEach(btn => {
+                if (clickedElements.has(btn)) return;
+
                 // Check visibility: Đủ lớn hoặc display/opacity ok
                 const style = window.getComputedStyle(btn);
                 const isVisible = (btn.offsetWidth > 0 && btn.offsetHeight > 0) &&
@@ -174,20 +183,25 @@
                     (style.opacity !== '0');
 
                 if (isVisible && typeof btn.click === 'function') {
+                    clickedElements.add(btn);
 
-                    // FORCE ENABLE: Đảm bảo nút nhận được click (chống invisible overlay)
+                    // FORCE ENABLE
                     btn.style.pointerEvents = 'auto';
                     btn.style.cursor = 'pointer';
                     btn.style.zIndex = '9999';
 
-                    // 1. Dùng Native Click (Quan trọng nhất)
+                    // ACTIONS
                     triggerNativeClick(btn);
-
-                    // 2. Click dự phòng (Fallback)
                     btn.click();
 
                     clicked = true;
-                    console.log(`[Focus DEBUG] ✅ Hard-Clicked skip button: ${selector}`);
+
+                    // Throttle logs
+                    const now = Date.now();
+                    if (now - lastLogTime > 1000) {
+                        console.log(`[Focus DEBUG] ✅ Clicked skip button (Throttled): ${selector}`);
+                        lastLogTime = now;
+                    }
                 }
             });
         });
@@ -199,9 +213,14 @@
     const optimizePlayback = () => {
         if (!settings.logic2Enabled) return;
 
-        // Chỉ trigger nếu đang có quảng cáo (check class cha)
+        // Check for ad classes OR presence of skip button (Ad Pod failsafe)
         const player = document.querySelector('.html5-video-player');
-        const isAd = player && (player.classList.contains('ad-interrupting') || player.classList.contains('ad-showing'));
+        const skipBtn = player ? player.querySelector('.ytp-ad-skip-button, .ytp-ad-next-button') : null;
+        const isAd = player && (
+            player.classList.contains('ad-interrupting') ||
+            player.classList.contains('ad-showing') ||
+            skipBtn !== null
+        );
 
         if (!isAd) return;
 
@@ -218,8 +237,8 @@
     const cleanLayout = () => {
         // Static ads (only if toggle enabled)
         if (settings.staticAdsEnabled) {
-            if (window.STATIC_AD_SELECTORS) {
-                window.STATIC_AD_SELECTORS.forEach(sel => {
+            if (STATIC_AD_SELECTORS && STATIC_AD_SELECTORS.length > 0) {
+                STATIC_AD_SELECTORS.forEach(sel => {
                     const els = document.querySelectorAll(sel);
                     els.forEach(el => {
                         if (el.style.display !== 'none') {
@@ -257,7 +276,12 @@
 
             // Check if ad is active to determine loop speed
             const player = document.querySelector('.html5-video-player');
-            const isAd = player && (player.classList.contains('ad-interrupting') || player.classList.contains('ad-showing'));
+            const skipBtn = player ? player.querySelector('.ytp-ad-skip-button, .ytp-ad-next-button') : null;
+            const isAd = player && (
+                player.classList.contains('ad-interrupting') ||
+                player.classList.contains('ad-showing') ||
+                skipBtn !== null
+            );
 
             // If Ad is detected, but we are running slow -> Switch to FAST (100ms)
             if (isAd && currentIntervalTime > 100) {
@@ -279,12 +303,22 @@
         }, intervalTime);
     };
 
-    // Inject script
+    // Inject script (The Core Hook)
     const injectScript = () => {
+        // 1. Inject Configuration Data
+        const configScript = document.createElement('script');
+        configScript.id = 'focus-config-data';
+        configScript.type = 'application/json';
+        configScript.textContent = JSON.stringify({});
+        (document.head || document.documentElement).appendChild(configScript);
+
+        // 2. Inject The Interceptor (inject.js) -> CRITICAL
         const script = document.createElement('script');
-        script.id = 'focus-config-data';
-        script.type = 'application/json';
-        script.textContent = JSON.stringify({});
+        script.src = chrome.runtime.getURL('inject.js');
+        script.onload = function () {
+            this.remove();
+            console.log('[Focus] inject.js injected successfully 💉');
+        };
         (document.head || document.documentElement).appendChild(script);
     };
 
@@ -306,7 +340,11 @@
                 });
                 console.log('[Focus DEBUG] ✅ Forwarded URLs to background.js');
             } catch (e) {
-                console.log('[Focus DEBUG] ❌ Error forwarding to background:', e.message);
+                if (e.message.includes('Extension context invalidated')) {
+                    console.log('[Focus] ⚠️ Extension reloaded. detailed log suppressed. Please refresh the page to reconnect.');
+                } else {
+                    console.log('[Focus DEBUG] ❌ Error forwarding to background:', e.message);
+                }
             }
         }
 
@@ -327,7 +365,9 @@
                     url: url
                 });
             } catch (e) {
-                console.log('[Focus RELAY] ❌ Error:', e.message);
+                if (!e.message.includes('Extension context invalidated')) {
+                    console.log('[Focus RELAY] ❌ Error:', e.message);
+                }
             }
         }
     });
@@ -341,12 +381,24 @@
             const response = await fetch(SELECTORS_URL + '?t=' + Date.now());
             if (response.ok) {
                 const data = await response.json();
-                if (data.skipSelectors) Object.assign(SKIP_SELECTORS, data.skipSelectors);
-                if (data.adHideSelectors) Object.assign(STATIC_AD_SELECTORS, data.adHideSelectors);
+
+                if (data.skipSelectors && Array.isArray(data.skipSelectors)) {
+                    // Merge unique
+                    data.skipSelectors.forEach(s => {
+                        if (!SKIP_SELECTORS.includes(s)) SKIP_SELECTORS.push(s);
+                    });
+                }
+
+                if (data.adHideSelectors && Array.isArray(data.adHideSelectors)) {
+                    // Replace or Merge? Let's Merge Unique to be safe against default hardcoded ones being crucial
+                    data.adHideSelectors.forEach(s => {
+                        if (!STATIC_AD_SELECTORS.includes(s)) STATIC_AD_SELECTORS.push(s);
+                    });
+                }
 
                 localStorage.setItem('focus_selectors', JSON.stringify(data));
                 localStorage.setItem('focus_selectors_time', Date.now().toString());
-                console.log('[Focus] Selectors updated from remote');
+                console.log('[Focus] Selectors updated from remote', data);
             }
         } catch (e) { }
     };
@@ -437,5 +489,5 @@
         }
     }, 500);
 
-    console.log(`%c[Focus] v35.0: YouTube Focus Mode Active 🎯`, "color: #667eea; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Focus] v35.3: YouTube Focus Mode Active 🎯`, "color: #667eea; font-weight: bold; font-size: 14px;");
 })();

@@ -163,5 +163,5 @@
         window.ytInitialData = processYoutubeData(window.ytInitialData);
     }
 
-    console.log('[Focus] v35.0 Active: Extract-Before-Cut ✅');
+    console.log('[Focus] v35.3 Active: Extract-Before-Cut ✅');
 })();
