@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Focus Mode",
-  "version": "35.3",
+  "version": "35.4",
   "description": "Enhance your YouTube viewing experience with distraction-free playback and content optimization",
   "permissions": [
     "scripting",
