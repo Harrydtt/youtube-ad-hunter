@@ -36,10 +36,9 @@
     // Anti-adblock popups (ALWAYS hide, regardless of settings)
     const ANTI_ADBLOCK_SELECTORS = [
         'ytd-enforcement-message-view-model',
-        'tp-yt-paper-dialog.ytd-popup-container',
+        'tp-yt-paper-dialog.ytd-popup-container:has(ytd-enforcement-message-view-model)',
         '.yt-playability-error-supported-renderers',
-        'div[id^="enforcement-message"]',
-        '.style-scope.ytd-popup-container'
+        'div[id^="enforcement-message"]'
     ];
 
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
