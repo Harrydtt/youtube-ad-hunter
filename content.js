@@ -61,7 +61,16 @@
 
             console.log('[Focus] Settings loaded:', settings);
             updateButtonAppearance();
+
+            // CRITICAL: Sync state BEFORE injecting script
             syncWithInjectJS();
+
+            // CRITICAL: Only inject if JSON Cut is enabled
+            if (settings.hunterActive && settings.jsonCutEnabled) {
+                injectScript();
+            } else {
+                console.log('[Focus] JSON Cut disabled, skipping inject.js');
+            }
         });
     };
 
@@ -459,7 +468,7 @@
     // Initialize logic
     loadSettings();
     updateSelectorsFromRemote();
-    injectScript();
+    // NOTE: injectScript() is now called inside loadSettings() callback ONLY if jsonCutEnabled
 
     // Start Header Button Logic
     const headerObserver = new MutationObserver(() => { createHeaderButton(); });
