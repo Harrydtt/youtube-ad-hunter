@@ -41,13 +41,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             try {
                 await setupOffscreenDocument();
 
+                console.log('[Background] Offscreen document ready, sending message...');
+
                 chrome.runtime.sendMessage({
                     type: 'PROCESS_BEACONS',
                     urls: msg.urls
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.log('[Background] ❌ Message error:', chrome.runtime.lastError.message);
+                    } else {
+                        console.log('[Background] ✅ Message delivered, response:', response);
+                    }
                 });
 
                 console.log(`[Background] Sent ${msg.urls.length} URLs for processing`);
-                console.log('[Background] URLs:', msg.urls);
             } catch (e) {
                 console.log('[Background] Processing error:', e);
             }

@@ -124,8 +124,13 @@ const processUrls = (urls) => {
 };
 
 // Listen for messages
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'PROCESS_BEACONS') {
+        console.log('[Offscreen] Received PROCESS_BEACONS message');
         processUrls(msg.urls);
+        sendResponse({ received: true, count: msg.urls?.length || 0 });
     }
+    return true; // Keep channel open for async response
 });
+
+console.log('[Offscreen] Ready to receive messages');
