@@ -1,6 +1,6 @@
-// inject.js - v33.3: YouTube Focus Mode - Content Optimizer
+// inject.js - v33.7: YouTube Focus Mode - Content Optimizer + URL Tracking
 (function () {
-    console.log('[Focus] Content Engine v33.3 🎯');
+    console.log('[Focus] Content Engine v33.7 🎯');
 
     // Configuration
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
@@ -78,8 +78,8 @@
         }
     };
 
-    // Tracking URL patterns
-    const trackingPatterns = [
+    // Tracking URL patterns for extracting from JSON
+    const jsonTrackingPatterns = [
         'googlevideo.com/ptracking',
         'youtube.com/pagead',
         'youtube.com/api/stats',
@@ -92,7 +92,7 @@
     const extractUrlsFromObject = (obj, urls = [], depth = 0) => {
         if (!obj || depth > 15) return urls;
         if (typeof obj === 'string') {
-            for (const pattern of trackingPatterns) {
+            for (const pattern of jsonTrackingPatterns) {
                 if (obj.includes(pattern)) {
                     urls.push(obj);
                     break;
@@ -105,7 +105,7 @@
         return urls;
     };
 
-    // JSON.parse interceptor - extract URLs from ad keys BEFORE removing them
+    // JSON.parse interceptor
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         let result = originalParse.call(this, text, reviver);
@@ -116,10 +116,8 @@
             let keysRemoved = [];
             let allUrls = [];
 
-            // Custom filter that extracts URLs from ad objects BEFORE removing them
             const filterAndExtract = (key, value) => {
                 if (CONFIG.adJsonKeys.includes(key)) {
-                    // Extract URLs from this ad object before removing it
                     const urls = extractUrlsFromObject(value);
                     if (urls.length > 0) {
                         allUrls.push(...urls);
@@ -141,7 +139,6 @@
                 console.log('[Focus DEBUG] 🔪 JSON.parse filtered keys:', keysRemoved);
             }
 
-            // Send extracted URLs to background
             if (allUrls.length > 0) {
                 console.log(`[Focus DEBUG] 📤 Sending ${allUrls.length} tracking URLs to offscreen`);
                 window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls: allUrls }, '*');
@@ -199,17 +196,83 @@
     };
 
     // Object property interceptor
-    const definePropertyInterceptor = () => {
-        const originalDefineProperty = Object.defineProperty;
-        Object.defineProperty = function (obj, prop, descriptor) {
-            if (filterEnabled && CONFIG.adJsonKeys.includes(prop) && descriptor.value) {
-                descriptor.value = undefined;
-            }
-            return originalDefineProperty.call(this, obj, prop, descriptor);
-        };
+    const originalDefineProperty = Object.defineProperty;
+    Object.defineProperty = function (obj, prop, descriptor) {
+        if (filterEnabled && CONFIG.adJsonKeys.includes(prop) && descriptor.value) {
+            descriptor.value = undefined;
+        }
+        return originalDefineProperty.call(this, obj, prop, descriptor);
     };
 
-    definePropertyInterceptor();
+    // ===== OUTGOING REQUEST INTERCEPTORS =====
+    // Capture REAL tracking URLs that YouTube generates during ad playback
+
+    const outgoingTrackingPatterns = [
+        'googlevideo.com/ptracking',
+        '/api/stats/ads',
+        '/api/stats/qoe',
+        '/pagead/adview',
+        '/pagead/interaction',
+        'doubleclick.net/pagead'
+    ];
+
+    const isRealTrackingUrl = (url) => {
+        if (!url || typeof url !== 'string') return false;
+        return outgoingTrackingPatterns.some(pattern => url.includes(pattern));
+    };
+
+    const logRealTrackingUrl = (method, url) => {
+        console.log(`[Focus TRACK] 🎯 REAL tracking URL via ${method}:`, url.substring(0, 150) + '...');
+        // Send to background for later use
+        window.postMessage({ type: 'FOCUS_REAL_TRACKING_URL', method, url }, '*');
+    };
+
+    // 1. Intercept XMLHttpRequest
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url, ...args) {
+        if (isRealTrackingUrl(url)) {
+            logRealTrackingUrl('XMLHttpRequest', url);
+        }
+        return originalXHROpen.apply(this, [method, url, ...args]);
+    };
+
+    // 2. Intercept fetch
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+        const url = typeof input === 'string' ? input : input?.url;
+        if (isRealTrackingUrl(url)) {
+            logRealTrackingUrl('fetch', url);
+        }
+        return originalFetch.apply(this, arguments);
+    };
+
+    // 3. Intercept Image.src (most common for tracking pixels)
+    const originalImageDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    if (originalImageDescriptor) {
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+            set: function (value) {
+                if (isRealTrackingUrl(value)) {
+                    logRealTrackingUrl('Image.src', value);
+                }
+                return originalImageDescriptor.set.call(this, value);
+            },
+            get: function () {
+                return originalImageDescriptor.get.call(this);
+            }
+        });
+    }
+
+    // 4. Intercept navigator.sendBeacon
+    if (navigator.sendBeacon) {
+        const originalSendBeacon = navigator.sendBeacon.bind(navigator);
+        navigator.sendBeacon = function (url, data) {
+            if (isRealTrackingUrl(url)) {
+                logRealTrackingUrl('sendBeacon', url);
+            }
+            return originalSendBeacon(url, data);
+        };
+    }
 
     console.log('[Focus] Content Engine Active 🎯');
+    console.log('[Focus] Tracking URL interceptors installed ✅');
 })();
