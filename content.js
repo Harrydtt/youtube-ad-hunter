@@ -30,7 +30,11 @@
         '.ytd-merch-shelf-renderer',
         'ytd-merch-shelf-renderer',
         'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-display-ad-renderer)',
-        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)'
+        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)',
+        // Anti-adblock popups
+        'ytd-enforcement-message-view-model',
+        'tp-yt-paper-dialog.ytd-popup-container',
+        '.yt-playability-error-supported-renderers'
     ];
 
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
@@ -121,14 +125,22 @@
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
+        let foundButtons = [];
+
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
+                foundButtons.push({ selector, visible: btn.offsetParent !== null, btn });
                 if (btn && btn.offsetParent !== null) {
                     btn.click();
                     clicked = true;
+                    console.log(`[Focus DEBUG] ✅ Clicked skip button: ${selector}`);
                 }
             });
         });
+
+        if (foundButtons.length > 0 && !clicked) {
+            console.log('[Focus DEBUG] ⚠️ Found buttons but none clickable:', foundButtons.map(b => ({ sel: b.selector, vis: b.visible })));
+        }
 
         if (clicked) console.log('[Focus] ⏩ Navigation optimized');
         return clicked;
@@ -147,13 +159,16 @@
         }
     };
 
-    // Clean visual distractions
+    // Clean visual distractions (always runs)
     const cleanLayout = () => {
-        if (!settings.staticAdsEnabled) return;
-
         STATIC_AD_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
-            els.forEach(el => { el.style.display = 'none'; });
+            els.forEach(el => {
+                if (el.style.display !== 'none') {
+                    el.style.display = 'none';
+                    console.log(`[Focus DEBUG] 🧹 Hidden: ${sel}`);
+                }
+            });
         });
     };
 
@@ -168,6 +183,7 @@
             optimizePlayback();
         }
 
+        // Always clean layout (for popup hiding)
         cleanLayout();
     };
 

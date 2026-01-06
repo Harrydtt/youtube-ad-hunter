@@ -93,8 +93,27 @@
         if (!filterEnabled || !result || typeof result !== 'object') return result;
 
         try {
-            result = processObject(result, filterContent);
-        } catch (e) { }
+            let keysRemoved = [];
+            const filterContentWithLog = (key, value) => {
+                if (CONFIG.adJsonKeys.includes(key)) {
+                    keysRemoved.push(key);
+                    return undefined;
+                }
+                if (CONFIG.popupJsonKeys.includes(key)) {
+                    keysRemoved.push(key);
+                    return undefined;
+                }
+                return value;
+            };
+
+            result = processObject(result, filterContentWithLog);
+
+            if (keysRemoved.length > 0) {
+                console.log('[Focus DEBUG] 🔪 JSON.parse filtered keys:', keysRemoved);
+            }
+        } catch (e) {
+            console.log('[Focus DEBUG] ❌ JSON.parse error:', e.message);
+        }
 
         return result;
     };
@@ -120,12 +139,33 @@
             };
 
             if (result.playerResponse) extractUrls(result.playerResponse);
+
             if (urls.length > 0) {
+                console.log(`[Focus DEBUG] 📡 Found ${urls.length} tracking URLs, sending to background`);
                 window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls }, '*');
             }
 
-            result = processObject(result, filterContent);
-        } catch (e) { }
+            let keysRemoved = [];
+            const filterContentWithLog = (key, value) => {
+                if (CONFIG.adJsonKeys.includes(key)) {
+                    keysRemoved.push(key);
+                    return undefined;
+                }
+                if (CONFIG.popupJsonKeys.includes(key)) {
+                    keysRemoved.push(key);
+                    return undefined;
+                }
+                return value;
+            };
+
+            result = processObject(result, filterContentWithLog);
+
+            if (keysRemoved.length > 0) {
+                console.log('[Focus DEBUG] 🔪 Response.json filtered keys:', keysRemoved);
+            }
+        } catch (e) {
+            console.log('[Focus DEBUG] ❌ Response.json error:', e.message);
+        }
 
         return result;
     };
