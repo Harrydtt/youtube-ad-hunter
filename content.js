@@ -145,7 +145,11 @@
 
         let clicked = false;
 
-        // Danh sách selector cập nhật mới nhất cho 2025
+        // Chỉ tìm button trong video player để tránh ảnh hưởng header
+        const player = document.querySelector('.html5-video-player');
+        if (!player) return false;
+
+        // Danh sách selector cập nhật mới nhất cho 2025 - CHỈ SKIP AD BUTTONS
         const SKIP_SELECTORS = [
             '.ytp-ad-skip-button',
             '.ytp-ad-skip-button-modern',
@@ -153,19 +157,17 @@
             '.ytp-skip-ad-button',
             '.videoAdUiSkipButton',
             'button.ytp-ad-skip-button',
-            'button[class*="skip"]',
-            '[id="skip-button:"]',
-            'button[aria-label^="Skip ad"]',
-            'button[aria-label^="Skip Ad"]',
-            'button[aria-label^="Bỏ qua"]',
             '.ytp-ad-skip-button-container button',
             '.ytp-ad-overlay-close-button',
-            '#skip-button\\:6 > span > button',
-            'button.ytp-ad-skip-button-modern.ytp-button'
+            'button.ytp-ad-skip-button-modern.ytp-button',
+            'button[aria-label^="Skip ad"]',
+            'button[aria-label^="Skip Ad"]',
+            'button[aria-label^="Bỏ qua"]'
         ];
 
         SKIP_SELECTORS.forEach(selector => {
-            const buttons = document.querySelectorAll(selector);
+            // Tìm trong player thôi, không tìm toàn page
+            const buttons = player.querySelectorAll(selector);
             buttons.forEach(btn => {
                 // Kiểm tra kỹ: Nút phải tồn tại VÀ hiển thị (kích thước > 0)
                 // offsetParent !== null là cách check xem element có bị hidden không
