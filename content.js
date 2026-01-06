@@ -179,7 +179,9 @@
             });
         }
 
-        // Anti-adblock popups (ALWAYS hide)
+        // Anti-adblock popups - TEMPORARILY DISABLED FOR TESTING
+        // Uncomment this section after testing to enable popup hiding
+        /*
         ANTI_ADBLOCK_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
             els.forEach(el => {
@@ -189,6 +191,7 @@
                 }
             });
         });
+        */
     };
 
     // Main loop
