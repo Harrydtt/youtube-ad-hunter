@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
+  <title>YouTube Focus Mode</title>
   <style>
     * {
       margin: 0;
@@ -11,40 +12,58 @@
     }
 
     body {
-      width: 300px;
-      padding: 16px;
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      width: 320px;
+      background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
       color: white;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 16px;
+      border-radius: 12px;
     }
 
     .header {
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .header h1 {
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       margin-bottom: 4px;
     }
 
-    .header .version {
+    .version {
       font-size: 11px;
       color: #888;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #667eea;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 16px 0 10px 0;
     }
 
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 12px 14px;
       background: rgba(255, 255, 255, 0.05);
-      padding: 10px 12px;
-      border-radius: 8px;
+      border-radius: 12px;
       margin-bottom: 8px;
+      transition: all 0.2s ease;
     }
 
-    .toggle-row.disabled {
-      opacity: 0.6;
+    .toggle-row:hover {
+      background: rgba(255, 255, 255, 0.08);
     }
 
     .toggle-label {
@@ -55,6 +74,7 @@
     .toggle-label .name {
       font-size: 13px;
       font-weight: 600;
+      color: #fff;
     }
 
     .toggle-label .desc {
@@ -89,9 +109,9 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: #444;
-      transition: 0.3s;
+      background: #333;
       border-radius: 24px;
+      transition: 0.3s;
     }
 
     .slider:before {
@@ -101,48 +121,67 @@
       width: 18px;
       left: 3px;
       bottom: 3px;
-      background-color: white;
-      transition: 0.3s;
+      background: white;
       border-radius: 50%;
+      transition: 0.3s;
     }
 
     input:checked+.slider {
-      background-color: #00cc66;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
 
     input:checked+.slider:before {
       transform: translateX(20px);
     }
 
-    .section-title {
-      font-size: 10px;
-      color: #666;
-      text-transform: uppercase;
-      margin: 12px 0 6px 4px;
-      letter-spacing: 1px;
+    .footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    .footer {
-      text-align: center;
-      margin-top: 12px;
-      font-size: 9px;
-      color: #555;
+    .footer-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      border-radius: 8px;
+      color: #aaa;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .footer-btn:hover {
+      background: rgba(102, 126, 234, 0.3);
+      color: #fff;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 8px;
     }
   </style>
 </head>
 
 <body>
   <div class="header">
-    <h1>🎯 YouTube Ad Hunter</h1>
-    <div class="version">v31.3 - Project Phantom</div>
+    <h1>🎯 YouTube Focus Mode</h1>
+    <div class="version">v33.0 - Distraction-Free</div>
   </div>
 
-  <div class="section-title">Video Ads</div>
+  <div class="section-title">Video Optimization</div>
 
   <div class="toggle-row">
     <div class="toggle-label">
-      <span class="name">🔪 JSON Cut</span>
-      <span class="desc">Cắt video ads từ gốc dữ liệu</span>
+      <span class="name">🧠 Content Filter</span>
+      <span class="desc">Optimize video data for smoother playback</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-jsoncut" checked>
@@ -152,9 +191,9 @@
 
   <div class="toggle-row">
     <div class="toggle-label">
-      <span class="name">👻 Offscreen Beacon</span>
-      <span class="desc">Fake view qua hidden iframe</span>
-      <span class="warning">⚠️ Tắt = Dùng JSON Cut dễ bị YouTube phát hiện!</span>
+      <span class="name">👻 Background Processing</span>
+      <span class="desc">Process metadata via hidden frame</span>
+      <span class="warning">⚠️ Disable only if Content Filter is off</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-offscreen" checked>
@@ -164,8 +203,8 @@
 
   <div class="toggle-row">
     <div class="toggle-label">
-      <span class="name">⚡ Logic Speed/Skip</span>
-      <span class="desc">Fallback tua x16 + click skip</span>
+      <span class="name">⚡ Quick Navigation</span>
+      <span class="desc">Speed up transitions and skip interruptions</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-logic2" checked>
@@ -173,12 +212,12 @@
     </label>
   </div>
 
-  <div class="section-title">Static Ads</div>
+  <div class="section-title">Interface Cleanup</div>
 
   <div class="toggle-row">
     <div class="toggle-label">
-      <span class="name">🚫 Block Static Ads</span>
-      <span class="desc">Ẩn banner, sidebar (rủi ro detect)</span>
+      <span class="name">🧹 Clean Layout</span>
+      <span class="desc">Remove visual distractions from page</span>
     </div>
     <label class="switch">
       <input type="checkbox" id="toggle-static">
@@ -187,7 +226,14 @@
   </div>
 
   <div class="footer">
-    Thay đổi có hiệu lực ngay lập tức
+    <div class="footer-links">
+      <a href="privacy.html" target="_blank" class="footer-btn">
+        🔒 Privacy
+      </a>
+      <a href="https://github.com/Harrydtt/youtube-ad-hunter/issues" target="_blank" class="footer-btn">
+        💬 Feedback
+      </a>
+    </div>
   </div>
 
   <script src="popup.js"></script>

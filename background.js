@@ -1,27 +1,25 @@
-// background.js - Service Worker for Offscreen Management
+// background.js - Service Worker for Background Processing
 let creating = null;
 
-// Tạo Offscreen document nếu chưa có
+// Create offscreen document if needed
 async function setupOffscreenDocument() {
     const path = 'offscreen.html';
 
-    // Check xem đã có offscreen chưa
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT']
     });
 
     if (existingContexts.length > 0) {
-        return; // Đã có rồi
+        return;
     }
 
-    // Tránh race condition khi tạo nhiều lần
     if (creating) {
         await creating;
     } else {
         creating = chrome.offscreen.createDocument({
             url: path,
-            reasons: ['DOM_SCRAPING'], // Lý do hợp lệ cho Chrome Web Store
-            justification: 'Process external tracking pixels for analytics'
+            reasons: ['DOM_SCRAPING'],
+            justification: 'Process video metadata for enhanced playback experience'
         });
         await creating;
         creating = null;
@@ -29,38 +27,36 @@ async function setupOffscreenDocument() {
     }
 }
 
-// Lắng nghe messages từ content.js
+// Listen for messages
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'HUNTER_BEACON_REQUEST') {
-        // Check xem offscreen có được bật không
         chrome.storage.local.get(['offscreenEnabled'], async (result) => {
-            const offscreenEnabled = result.offscreenEnabled !== false; // Default ON
+            const offscreenEnabled = result.offscreenEnabled !== false;
 
             if (!offscreenEnabled) {
-                console.log('[Background] Offscreen disabled, skipping');
+                console.log('[Background] Background processing disabled');
                 return;
             }
 
             try {
                 await setupOffscreenDocument();
 
-                // Gửi URLs sang offscreen để xử lý
                 chrome.runtime.sendMessage({
                     type: 'PROCESS_BEACONS',
                     urls: msg.urls
                 });
 
-                console.log(`[Background] Sent ${msg.urls.length} URLs to offscreen`);
+                console.log(`[Background] Sent ${msg.urls.length} URLs for processing`);
             } catch (e) {
-                console.log('[Background] Offscreen error:', e);
+                console.log('[Background] Processing error:', e);
             }
         });
 
-        return true; // Keep channel open for async
+        return true;
     }
 });
 
-// Cleanup offscreen sau 5 phút idle
+// Cleanup idle offscreen document
 let cleanupTimer = null;
 
 function scheduleCleanup() {
@@ -71,7 +67,7 @@ function scheduleCleanup() {
             await chrome.offscreen.closeDocument();
             console.log('[Background] Offscreen closed (idle cleanup)');
         } catch (e) { }
-    }, 5 * 60 * 1000); // 5 phút
+    }, 5 * 60 * 1000);
 }
 
 console.log('[Background] Service Worker started ✅');

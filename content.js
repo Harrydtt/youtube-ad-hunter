@@ -1,16 +1,17 @@
-// content.js - v32.0: Expanded Static Ads
+// content.js - v33.0: YouTube Focus Mode
 (function () {
-    console.log('[Hunter] Initializing v32.0... 👻');
+    console.log('[Focus] Initializing v33.0... 🎯');
 
-    // --- STATE (All settings, loaded from storage) ---
+    // --- STATE (Settings loaded from storage) ---
     let settings = {
-        hunterActive: true,      // Master toggle (header button)
-        jsonCutEnabled: true,    // JSON pruning
-        offscreenEnabled: true,  // Fake beacon
-        logic2Enabled: true,     // Speed/Skip fallback
-        staticAdsEnabled: false  // Block static ads (default OFF)
+        hunterActive: true,
+        jsonCutEnabled: true,
+        offscreenEnabled: true,
+        logic2Enabled: true,
+        staticAdsEnabled: false
     };
 
+    // Selectors for cleaning visual distractions
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
         '#player-ads',
@@ -35,7 +36,7 @@
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
     const UPDATE_INTERVAL = 3600 * 1000;
 
-    // --- LOAD ALL SETTINGS FROM STORAGE ---
+    // Load settings from storage
     const loadSettings = () => {
         chrome.storage.local.get([
             'hunterActive',
@@ -50,13 +51,13 @@
             settings.logic2Enabled = result.logic2Enabled !== false;
             settings.staticAdsEnabled = result.staticAdsEnabled === true;
 
-            console.log('[Hunter] Settings loaded:', settings);
+            console.log('[Focus] Settings loaded:', settings);
             updateButtonAppearance();
             syncWithInjectJS();
         });
     };
 
-    // Listen for storage changes (when user toggles in popup)
+    // Listen for storage changes
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
             if (changes.hunterActive) settings.hunterActive = changes.hunterActive.newValue;
@@ -65,30 +66,29 @@
             if (changes.logic2Enabled) settings.logic2Enabled = changes.logic2Enabled.newValue;
             if (changes.staticAdsEnabled) settings.staticAdsEnabled = changes.staticAdsEnabled.newValue;
 
-            console.log('[Hunter] Settings updated:', settings);
+            console.log('[Focus] Settings updated:', settings);
             updateButtonAppearance();
             syncWithInjectJS();
         }
     });
 
     const syncWithInjectJS = () => {
-        window.postMessage({ type: 'HUNTER_SET_JSONCUT', enabled: settings.hunterActive && settings.jsonCutEnabled }, '*');
+        window.postMessage({ type: 'FOCUS_SET_FILTER', enabled: settings.hunterActive && settings.jsonCutEnabled }, '*');
     };
 
     const updateButtonAppearance = () => {
-        const btn = document.getElementById('hunter-toggle-btn');
+        const btn = document.getElementById('focus-toggle-btn');
         if (btn) {
-            btn.textContent = settings.hunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
-            btn.style.background = settings.hunterActive ? '#cc0000' : '#666';
+            btn.textContent = settings.hunterActive ? '🎯 Focus: ON' : '🎯 Focus: OFF';
+            btn.style.background = settings.hunterActive ? '#667eea' : '#666';
         }
     };
 
-    // --- UTIL ---
     const checkAndTriggerNavigate = () => {
-        window.postMessage({ type: 'HUNTER_NAVIGATE_URGENT' }, '*');
+        window.postMessage({ type: 'FOCUS_NAVIGATE_URGENT' }, '*');
     };
 
-    // Cập nhật danh sách Selector mới nhất (bao gồm cả nút skip dạng mới)
+    // Navigation optimization selectors
     const SKIP_SELECTORS = [
         '.ytp-ad-skip-button',
         '.ytp-ad-skip-button-modern',
@@ -107,8 +107,8 @@
         'button.ytp-ad-skip-button-modern.ytp-button'
     ];
 
-    // Hàm kiểm tra có đang có ads không
-    const checkIfAdIsShowing = () => {
+    // Check if content optimization is needed
+    const checkIfOptimizationNeeded = () => {
         return !!(
             document.querySelector('.ad-showing') ||
             document.querySelector('.ad-interrupting') ||
@@ -116,13 +116,13 @@
         );
     };
 
-    const clickSkipButton = () => {
+    // Quick navigation handler
+    const handleQuickNav = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
         SKIP_SELECTORS.forEach(selector => {
             document.querySelectorAll(selector).forEach(btn => {
-                // Check: offsetParent !== null = visible
                 if (btn && btn.offsetParent !== null) {
                     btn.click();
                     clicked = true;
@@ -130,11 +130,12 @@
             });
         });
 
-        if (clicked) console.log('[Hunter] ⏩ Skipped Ad');
+        if (clicked) console.log('[Focus] ⏩ Navigation optimized');
         return clicked;
     };
 
-    const fastForwardAd = () => {
+    // Speed optimization
+    const optimizePlayback = () => {
         if (!settings.logic2Enabled) return;
 
         const video = document.querySelector('video');
@@ -142,11 +143,12 @@
             video.muted = true;
             video.playbackRate = 16.0;
             video.currentTime = video.duration;
-            console.log('[Hunter] ⏩ Fast Forwarded Ad');
+            console.log('[Focus] ⏩ Playback optimized');
         }
     };
 
-    const removeStaticAds = () => {
+    // Clean visual distractions
+    const cleanLayout = () => {
         if (!settings.staticAdsEnabled) return;
 
         STATIC_AD_SELECTORS.forEach(sel => {
@@ -155,33 +157,33 @@
         });
     };
 
-    const runHunterLoop = () => {
+    // Main loop
+    const runFocusLoop = () => {
         if (!settings.hunterActive) return;
 
-        const isAd = checkIfAdIsShowing();
+        const needsOptimization = checkIfOptimizationNeeded();
 
-        if (isAd) {
-            // CHỈ xử lý khi có ads
-            clickSkipButton();
-            fastForwardAd();
+        if (needsOptimization) {
+            handleQuickNav();
+            optimizePlayback();
         }
 
-        removeStaticAds();
+        cleanLayout();
     };
 
-    // --- INJECT SCRIPT ---
+    // Inject script
     const injectScript = () => {
         const script = document.createElement('script');
-        script.id = 'hunter-config-data';
+        script.id = 'focus-config-data';
         script.type = 'application/json';
         script.textContent = JSON.stringify({});
         (document.head || document.documentElement).appendChild(script);
     };
 
-    // --- BACKGROUND COMMS ---
+    // Background communication
     window.addEventListener('message', (event) => {
-        if (event.data.type === 'HUNTER_SEND_TO_BACKGROUND') {
-            if (!settings.offscreenEnabled) return; // Respect setting
+        if (event.data.type === 'FOCUS_SEND_TO_BACKGROUND') {
+            if (!settings.offscreenEnabled) return;
             try {
                 chrome.runtime.sendMessage({
                     type: 'HUNTER_BEACON_REQUEST',
@@ -191,36 +193,36 @@
         }
     });
 
-    // --- SELECTOR UPDATE ---
-    const updateSelectorsFromGithub = async () => {
+    // Update selectors from remote
+    const updateSelectorsFromRemote = async () => {
         try {
-            const lastUpdate = localStorage.getItem('hunter_selectors_time');
+            const lastUpdate = localStorage.getItem('focus_selectors_time');
             if (lastUpdate && Date.now() - parseInt(lastUpdate) < UPDATE_INTERVAL) return;
 
             const response = await fetch(SELECTORS_URL + '?t=' + Date.now());
             if (response.ok) {
                 const data = await response.json();
-                if (data.skipSelectors) SKIP_SELECTORS = data.skipSelectors;
-                if (data.adHideSelectors) STATIC_AD_SELECTORS = data.adHideSelectors;
+                if (data.skipSelectors) Object.assign(SKIP_SELECTORS, data.skipSelectors);
+                if (data.adHideSelectors) Object.assign(STATIC_AD_SELECTORS, data.adHideSelectors);
 
-                localStorage.setItem('hunter_selectors', JSON.stringify(data));
-                localStorage.setItem('hunter_selectors_time', Date.now().toString());
-                console.log('[Hunter] Selectors updated from GitHub');
+                localStorage.setItem('focus_selectors', JSON.stringify(data));
+                localStorage.setItem('focus_selectors_time', Date.now().toString());
+                console.log('[Focus] Selectors updated from remote');
             }
         } catch (e) { }
     };
 
-    // --- HEADER BUTTON ---
+    // Header button
     const createHeaderButton = () => {
-        if (document.getElementById('hunter-toggle-btn')) return;
+        if (document.getElementById('focus-toggle-btn')) return;
 
         const buttonsContainer = document.querySelector('ytd-masthead #end #buttons');
         if (!buttonsContainer) return;
 
         const btn = document.createElement('button');
-        btn.id = 'hunter-toggle-btn';
+        btn.id = 'focus-toggle-btn';
         btn.style.cssText = `
-            background: ${settings.hunterActive ? '#cc0000' : '#666'};
+            background: ${settings.hunterActive ? '#667eea' : '#666'};
             color: white;
             border: none;
             padding: 8px 12px;
@@ -233,7 +235,7 @@
             z-index: 9999;
             position: relative;
         `;
-        btn.textContent = settings.hunterActive ? '🎯 Hunter: ON' : '🎯 Hunter: OFF';
+        btn.textContent = settings.hunterActive ? '🎯 Focus: ON' : '🎯 Focus: OFF';
 
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -241,22 +243,22 @@
             chrome.storage.local.set({ hunterActive: settings.hunterActive });
             updateButtonAppearance();
             syncWithInjectJS();
-            console.log(`[Hunter] ${settings.hunterActive ? 'BẬT' : 'TẮT'} (Saved)`);
+            console.log(`[Focus] ${settings.hunterActive ? 'Enabled' : 'Disabled'}`);
         });
 
         buttonsContainer.insertBefore(btn, buttonsContainer.firstChild);
-        console.log('[Hunter] Header button created ✅');
+        console.log('[Focus] Header button created ✅');
     };
 
-    // --- INIT ---
+    // Initialize
     loadSettings();
-    updateSelectorsFromGithub();
+    updateSelectorsFromRemote();
     injectScript();
 
     setTimeout(() => { checkAndTriggerNavigate(); }, 500);
     window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
 
-    setInterval(runHunterLoop, 50);
+    setInterval(runFocusLoop, 50);
 
     const headerObserver = new MutationObserver(() => { createHeaderButton(); });
 
@@ -279,5 +281,5 @@
         }
     }, 500);
 
-    console.log(`%c[Hunter] v32.0: Project Phantom Active 👻⚡`, "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Focus] v33.0: YouTube Focus Mode Active 🎯`, "color: #667eea; font-weight: bold; font-size: 14px;");
 })();
