@@ -50,15 +50,34 @@ const categorizeUrl = (url) => {
     return 'unknown';
 };
 
+// Validate URL before processing
+const isValidTrackingUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    // Must start with http or //
+    if (!url.startsWith('http') && !url.startsWith('//')) return false;
+    // Must be a tracking URL (not video content)
+    return url.includes('ptracking') ||
+        url.includes('/pagead/') ||
+        url.includes('/api/stats/') ||
+        url.includes('doubleclick.net') ||
+        url.includes('googlevideo.com/ptracking');
+};
+
 // Process URLs with realistic timing
 const processUrls = (urls) => {
     if (!urls || urls.length === 0) return;
 
     console.log(`[Offscreen] 📥 Received ${urls.length} template URLs to process`);
 
+    // Filter valid tracking URLs only
+    const validUrls = urls.filter(isValidTrackingUrl);
+    console.log(`[Offscreen] ✅ ${validUrls.length} valid tracking URLs (filtered from ${urls.length})`);
+
+    if (validUrls.length === 0) return;
+
     let sentCount = 0;
 
-    urls.forEach((originalUrl, index) => {
+    validUrls.forEach((originalUrl, index) => {
         // 1. Fill placeholders to create "real" URL
         const url = fillPlaceholders(originalUrl);
 
