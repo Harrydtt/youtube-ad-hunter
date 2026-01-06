@@ -5,25 +5,41 @@ let creating = null;
 async function setupOffscreenDocument() {
     const path = 'offscreen.html';
 
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT']
-    });
+    // Check if already exists
+    try {
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT']
+        });
 
-    if (existingContexts.length > 0) {
-        return;
+        if (existingContexts.length > 0) {
+            return; // Already exists
+        }
+    } catch (e) {
+        // getContexts might fail, continue anyway
     }
 
+    // Wait for any pending creation
     if (creating) {
         await creating;
-    } else {
+        return; // After waiting, document should exist
+    }
+
+    // Create new document
+    try {
         creating = chrome.offscreen.createDocument({
             url: path,
             reasons: ['DOM_SCRAPING'],
             justification: 'Process video metadata for enhanced playback experience'
         });
         await creating;
-        creating = null;
         console.log('[Background] Offscreen document created ✅');
+    } catch (e) {
+        // Ignore "already exists" error
+        if (!e.message.includes('single offscreen')) {
+            console.log('[Background] Offscreen create error:', e.message);
+        }
+    } finally {
+        creating = null;
     }
 }
 
