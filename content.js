@@ -187,16 +187,22 @@
         return clicked;
     };
 
-    // Speed optimization
+    // Speed optimization (Speed-Hack)
     const optimizePlayback = () => {
         if (!settings.logic2Enabled) return;
+
+        // Chỉ trigger nếu đang có quảng cáo (check class cha)
+        const player = document.querySelector('.html5-video-player');
+        const isAd = player && (player.classList.contains('ad-interrupting') || player.classList.contains('ad-showing'));
+
+        if (!isAd) return;
 
         const video = document.querySelector('video');
         if (video && !isNaN(video.duration) && video.duration > 0) {
             video.muted = true;
             video.playbackRate = 16.0;
-            video.currentTime = video.duration;
-            console.log('[Focus] ⏩ Playback optimized');
+            video.currentTime = video.duration; // Tua hết luôn
+            console.log('[Focus] ⏩ Ad Speed-Hacked (Skipped by duration hack)');
         }
     };
 
