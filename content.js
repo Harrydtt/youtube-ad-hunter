@@ -1,6 +1,6 @@
-// content.js - v33.2: Fixed Tracking & Filter
+// content.js - v33.3: Fixed Static Ads Toggle
 (function () {
-    console.log('[Focus] Initializing v33.2... 👻');
+    console.log('[Focus] Initializing v33.3... 👻');
 
     // --- STATE (Settings loaded from storage) ---
     let settings = {
@@ -11,7 +11,7 @@
         staticAdsEnabled: false
     };
 
-    // Selectors for cleaning visual distractions
+    // Selectors for cleaning visual distractions (respects toggle)
     let STATIC_AD_SELECTORS = [
         '#masthead-ad',
         '#player-ads',
@@ -30,11 +30,16 @@
         '.ytd-merch-shelf-renderer',
         'ytd-merch-shelf-renderer',
         'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-display-ad-renderer)',
-        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)',
-        // Anti-adblock popups
+        'ytd-rich-item-renderer.style-scope.ytd-rich-grid-row #content:has(ytd-ad-slot-renderer)'
+    ];
+
+    // Anti-adblock popups (ALWAYS hide, regardless of settings)
+    const ANTI_ADBLOCK_SELECTORS = [
         'ytd-enforcement-message-view-model',
         'tp-yt-paper-dialog.ytd-popup-container',
-        '.yt-playability-error-supported-renderers'
+        '.yt-playability-error-supported-renderers',
+        'div[id^="enforcement-message"]',
+        '.style-scope.ytd-popup-container'
     ];
 
     const SELECTORS_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
@@ -159,14 +164,28 @@
         }
     };
 
-    // Clean visual distractions (always runs)
+    // Clean visual distractions
     const cleanLayout = () => {
-        STATIC_AD_SELECTORS.forEach(sel => {
+        // Static ads (only if toggle enabled)
+        if (settings.staticAdsEnabled) {
+            STATIC_AD_SELECTORS.forEach(sel => {
+                const els = document.querySelectorAll(sel);
+                els.forEach(el => {
+                    if (el.style.display !== 'none') {
+                        el.style.display = 'none';
+                        console.log(`[Focus DEBUG] 🧹 Hidden static: ${sel}`);
+                    }
+                });
+            });
+        }
+
+        // Anti-adblock popups (ALWAYS hide)
+        ANTI_ADBLOCK_SELECTORS.forEach(sel => {
             const els = document.querySelectorAll(sel);
             els.forEach(el => {
                 if (el.style.display !== 'none') {
                     el.style.display = 'none';
-                    console.log(`[Focus DEBUG] 🧹 Hidden: ${sel}`);
+                    console.log(`[Focus DEBUG] 🚫 Hidden anti-adblock popup: ${sel}`);
                 }
             });
         });

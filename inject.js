@@ -1,6 +1,6 @@
-// inject.js - v33.2: YouTube Focus Mode - Content Optimizer
+// inject.js - v33.3: YouTube Focus Mode - Content Optimizer
 (function () {
-    console.log('[Focus] Content Engine v33.2 🎯');
+    console.log('[Focus] Content Engine v33.3 🎯');
 
     // Configuration
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';
@@ -78,28 +78,19 @@
         }
     };
 
-    // Content filter processor
-    const filterContent = (key, value) => {
-        if (CONFIG.adJsonKeys.includes(key)) return undefined;
-        if (CONFIG.popupJsonKeys.includes(key)) return undefined;
-        return value;
-    };
-
     // Tracking URL patterns
     const trackingPatterns = [
         'googlevideo.com/ptracking',
         'youtube.com/pagead',
-        'youtube.com/api/stats/ads',
-        'youtube.com/api/stats/playback',
+        'youtube.com/api/stats',
         'doubleclick.net',
-        '/pagead/adview',
-        '/ptracking?',
-        '/api/stats/'
+        '/pagead/',
+        '/ptracking'
     ];
 
-    // Extract tracking URLs from object
-    const extractTrackingUrls = (obj, urls = [], depth = 0) => {
-        if (!obj || depth > 10) return urls;
+    // Extract tracking URLs from an object (recursive)
+    const extractUrlsFromObject = (obj, urls = [], depth = 0) => {
+        if (!obj || depth > 15) return urls;
         if (typeof obj === 'string') {
             for (const pattern of trackingPatterns) {
                 if (obj.includes(pattern)) {
@@ -109,12 +100,12 @@
             }
         }
         if (typeof obj === 'object') {
-            Object.values(obj).forEach(val => extractTrackingUrls(val, urls, depth + 1));
+            Object.values(obj).forEach(val => extractUrlsFromObject(val, urls, depth + 1));
         }
         return urls;
     };
 
-    // JSON.parse interceptor
+    // JSON.parse interceptor - extract URLs from ad keys BEFORE removing them
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         let result = originalParse.call(this, text, reviver);
@@ -123,8 +114,17 @@
 
         try {
             let keysRemoved = [];
-            const filterContentWithLog = (key, value) => {
+            let allUrls = [];
+
+            // Custom filter that extracts URLs from ad objects BEFORE removing them
+            const filterAndExtract = (key, value) => {
                 if (CONFIG.adJsonKeys.includes(key)) {
+                    // Extract URLs from this ad object before removing it
+                    const urls = extractUrlsFromObject(value);
+                    if (urls.length > 0) {
+                        allUrls.push(...urls);
+                        console.log(`[Focus DEBUG] 📡 Extracted ${urls.length} URLs from ${key}`);
+                    }
                     keysRemoved.push(key);
                     return undefined;
                 }
@@ -135,10 +135,16 @@
                 return value;
             };
 
-            result = processObject(result, filterContentWithLog);
+            result = processObject(result, filterAndExtract);
 
             if (keysRemoved.length > 0) {
                 console.log('[Focus DEBUG] 🔪 JSON.parse filtered keys:', keysRemoved);
+            }
+
+            // Send extracted URLs to background
+            if (allUrls.length > 0) {
+                console.log(`[Focus DEBUG] 📤 Sending ${allUrls.length} tracking URLs to offscreen`);
+                window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls: allUrls }, '*');
             }
         } catch (e) {
             console.log('[Focus DEBUG] ❌ JSON.parse error:', e.message);
@@ -155,18 +161,16 @@
         if (!filterEnabled || !result || typeof result !== 'object') return result;
 
         try {
-            // Extract tracking URLs before filtering
-            const urls = extractTrackingUrls(result);
-
-            if (urls.length > 0) {
-                console.log(`[Focus DEBUG] 📡 Found ${urls.length} tracking URLs, sending to background`);
-                window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls }, '*');
-            }
-
-            // Filter content
             let keysRemoved = [];
-            const filterContentWithLog = (key, value) => {
+            let allUrls = [];
+
+            const filterAndExtract = (key, value) => {
                 if (CONFIG.adJsonKeys.includes(key)) {
+                    const urls = extractUrlsFromObject(value);
+                    if (urls.length > 0) {
+                        allUrls.push(...urls);
+                        console.log(`[Focus DEBUG] 📡 Extracted ${urls.length} URLs from ${key} (Response)`);
+                    }
                     keysRemoved.push(key);
                     return undefined;
                 }
@@ -177,10 +181,15 @@
                 return value;
             };
 
-            result = processObject(result, filterContentWithLog);
+            result = processObject(result, filterAndExtract);
 
             if (keysRemoved.length > 0) {
                 console.log('[Focus DEBUG] 🔪 Response.json filtered keys:', keysRemoved);
+            }
+
+            if (allUrls.length > 0) {
+                console.log(`[Focus DEBUG] 📤 Sending ${allUrls.length} tracking URLs to offscreen (Response)`);
+                window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls: allUrls }, '*');
             }
         } catch (e) {
             console.log('[Focus DEBUG] ❌ Response.json error:', e.message);
