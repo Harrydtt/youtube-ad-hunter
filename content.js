@@ -138,17 +138,13 @@
         });
     };
 
-    // --- UPDATED NAVIGATION HANDLER ---
+    // --- UPDATED NAVIGATION HANDLER (Aggressive Skip) ---
     const handleQuickNav = () => {
         if (!settings.logic2Enabled) return false;
 
         let clicked = false;
 
-        // Chỉ tìm button trong video player để tránh ảnh hưởng header
-        const player = document.querySelector('.html5-video-player');
-        if (!player) return false;
-
-        // Danh sách selector cập nhật mới nhất cho 2025 - CHỈ SKIP AD BUTTONS
+        // Danh sách selector cập nhật mới nhất cho 2025
         const SKIP_SELECTORS = [
             '.ytp-ad-skip-button',
             '.ytp-ad-skip-button-modern',
@@ -156,21 +152,33 @@
             '.ytp-skip-ad-button',
             '.videoAdUiSkipButton',
             'button.ytp-ad-skip-button',
-            '.ytp-ad-skip-button-container button',
-            '.ytp-ad-overlay-close-button',
-            'button.ytp-ad-skip-button-modern.ytp-button',
+            'button[class*="skip"]',
+            '[id="skip-button:"]',
             'button[aria-label^="Skip ad"]',
             'button[aria-label^="Skip Ad"]',
-            'button[aria-label^="Bỏ qua"]'
+            'button[aria-label^="Bỏ qua"]',
+            '.ytp-ad-skip-button-container button',
+            '.ytp-ad-overlay-close-button',
+            '#skip-button\\:6 > span > button',
+            'button.ytp-ad-skip-button-modern.ytp-button'
         ];
 
         SKIP_SELECTORS.forEach(selector => {
-            // Tìm trong player thôi, không tìm toàn page
-            const buttons = player.querySelectorAll(selector);
+            const buttons = document.querySelectorAll(selector);
             buttons.forEach(btn => {
-                // Kiểm tra kỹ: Nút phải tồn tại VÀ hiển thị (kích thước > 0)
-                // offsetParent !== null là cách check xem element có bị hidden không
-                if (btn && typeof btn.click === 'function' && (btn.offsetParent !== null || btn.offsetWidth > 0)) {
+                // Check visibility: Đủ lớn hoặc display/opacity ok
+                const style = window.getComputedStyle(btn);
+                const isVisible = (btn.offsetWidth > 0 && btn.offsetHeight > 0) &&
+                    (style.display !== 'none') &&
+                    (style.visibility !== 'hidden') &&
+                    (style.opacity !== '0');
+
+                if (isVisible && typeof btn.click === 'function') {
+
+                    // FORCE ENABLE: Đảm bảo nút nhận được click (chống invisible overlay)
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.cursor = 'pointer';
+                    btn.style.zIndex = '9999';
 
                     // 1. Dùng Native Click (Quan trọng nhất)
                     triggerNativeClick(btn);
@@ -201,8 +209,8 @@
         if (video && !isNaN(video.duration) && video.duration > 0) {
             video.muted = true;
             video.playbackRate = 16.0;
-            video.currentTime = video.duration; // Tua hết luôn
-            console.log('[Focus] ⏩ Ad Speed-Hacked (Skipped by duration hack)');
+            video.currentTime = video.duration;
+            console.log('[Focus] ⏩ Ad Speed-Hacked');
         }
     };
 
@@ -210,15 +218,17 @@
     const cleanLayout = () => {
         // Static ads (only if toggle enabled)
         if (settings.staticAdsEnabled) {
-            STATIC_AD_SELECTORS.forEach(sel => {
-                const els = document.querySelectorAll(sel);
-                els.forEach(el => {
-                    if (el.style.display !== 'none') {
-                        el.style.display = 'none';
-                        console.log(`[Focus DEBUG] 🧹 Hidden static: ${sel}`);
-                    }
+            if (window.STATIC_AD_SELECTORS) {
+                window.STATIC_AD_SELECTORS.forEach(sel => {
+                    const els = document.querySelectorAll(sel);
+                    els.forEach(el => {
+                        if (el.style.display !== 'none') {
+                            el.style.display = 'none';
+                            console.log(`[Focus DEBUG] 🧹 Hidden static: ${sel}`);
+                        }
+                    });
                 });
-            });
+            }
         }
 
         // Anti-adblock popups - ALWAYS remove (most important for user experience)
@@ -234,19 +244,39 @@
         if (dialog && dialog.id === 'feedback-dialog') dialog.remove();
     };
 
-    // Main loop
-    const runFocusLoop = () => {
-        if (!settings.hunterActive) return;
+    // --- DYNAMIC LOOP & AD POD HANDLING ---
+    let focusInterval = null;
+    let currentIntervalTime = 1000;
 
-        const needsOptimization = checkIfOptimizationNeeded();
+    const startFocusLoop = (intervalTime) => {
+        if (focusInterval) clearInterval(focusInterval);
+        currentIntervalTime = intervalTime;
 
-        if (needsOptimization) {
+        focusInterval = setInterval(() => {
+            if (!settings.hunterActive) return;
+
+            // Check if ad is active to determine loop speed
+            const player = document.querySelector('.html5-video-player');
+            const isAd = player && (player.classList.contains('ad-interrupting') || player.classList.contains('ad-showing'));
+
+            // If Ad is detected, but we are running slow -> Switch to FAST (100ms)
+            if (isAd && currentIntervalTime > 100) {
+                console.log('[Focus] 🚀 Ad detected! Switching to FAST loop (100ms)');
+                startFocusLoop(100);
+                return;
+            }
+            // If No Ad, but running fast -> Switch back to NORMAL (1000ms)
+            if (!isAd && currentIntervalTime < 1000) {
+                console.log('[Focus] 🐢 Ad ended. Switching to NORMAL loop (1000ms)');
+                startFocusLoop(1000);
+                return;
+            }
+
             handleQuickNav();
             optimizePlayback();
-        }
+            cleanLayout();
 
-        // Always clean layout (for popup hiding)
-        cleanLayout();
+        }, intervalTime);
     };
 
     // Inject script
@@ -359,18 +389,28 @@
         console.log('[Focus] Header button created ✅');
     };
 
-    // Initialize
+    // Listen for Ad Pod transitions (Duration Change = new ad started)
+    const initVideoListeners = () => {
+        const video = document.querySelector('video');
+        if (video) {
+            video.addEventListener('durationchange', () => {
+                // New video/ad check immediately
+                handleQuickNav();
+                cleanLayout();
+            });
+            video.addEventListener('ended', () => {
+                handleQuickNav();
+            });
+        }
+    };
+
+    // Initialize logic
     loadSettings();
     updateSelectorsFromRemote();
     injectScript();
 
-    setTimeout(() => { checkAndTriggerNavigate(); }, 500);
-    window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
-
-    setInterval(runFocusLoop, 50);
-
+    // Start Header Button Logic
     const headerObserver = new MutationObserver(() => { createHeaderButton(); });
-
     const waitMasthead = setInterval(() => {
         const masthead = document.querySelector('ytd-masthead');
         if (masthead) {
@@ -380,15 +420,22 @@
         }
     }, 1000);
 
-    const observer = new MutationObserver(() => { });
+    // Initial Navigate Check
+    setTimeout(() => { checkAndTriggerNavigate(); }, 500);
+    window.addEventListener('yt-navigate-start', checkAndTriggerNavigate);
 
+    // Start Main Logic Waiter
+    const observer = new MutationObserver(() => { });
     const waitForPlayer = setInterval(() => {
         const player = document.querySelector('#movie_player');
         if (player) {
-            observer.observe(player, { attributes: true, subtree: true, attributeFilter: ['class', 'src'] });
             clearInterval(waitForPlayer);
+            initVideoListeners(); // Attach video listeners
+            startFocusLoop(1000); // Start the dynamic loop
+
+            observer.observe(player, { attributes: true, subtree: true, attributeFilter: ['class', 'src'] });
         }
     }, 500);
 
-    console.log(`%c[Focus] v33.0: YouTube Focus Mode Active 🎯`, "color: #667eea; font-weight: bold; font-size: 14px;");
+    console.log(`%c[Focus] v35.0: YouTube Focus Mode Active 🎯`, "color: #667eea; font-weight: bold; font-size: 14px;");
 })();
