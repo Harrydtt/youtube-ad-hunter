@@ -123,6 +123,32 @@ const processUrls = (urls) => {
     console.log(`[Offscreen] Queued ${processedCount} URLs, skipped ${skippedCount}`);
 };
 
+// Replay a single REAL URL immediately
+const replaySingleUrl = (url, originalMethod) => {
+    // Fix URL if it starts with //
+    const fullUrl = url.startsWith('//') ? 'https:' + url : url;
+
+    console.log(`[Offscreen] 🚀 Replaying REAL URL (${originalMethod}):`, fullUrl.substring(0, 120) + '...');
+
+    // Use fetch for replay (most reliable from extension context)
+    fetch(fullUrl, {
+        method: 'GET',
+        mode: 'no-cors',
+        credentials: 'include',
+        cache: 'no-store'
+    })
+        .then(() => {
+            console.log(`[Offscreen] ✅ REAL URL replayed successfully!`);
+        })
+        .catch((err) => {
+            console.log(`[Offscreen] ⚠️ Replay fetch error (expected with no-cors):`, err.message);
+            // Try with Image as fallback
+            const img = new Image();
+            img.src = fullUrl;
+            console.log(`[Offscreen] 🖼️ Fallback: sent via Image`);
+        });
+};
+
 // Listen for messages
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'PROCESS_BEACONS') {
@@ -130,7 +156,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         processUrls(msg.urls);
         sendResponse({ received: true, count: msg.urls?.length || 0 });
     }
+
+    // Handle REAL URL replay
+    if (msg.type === 'REPLAY_SINGLE_URL') {
+        console.log('[Offscreen] 🎯 Received REAL URL to replay');
+        replaySingleUrl(msg.url, msg.method);
+        sendResponse({ replayed: true, url: msg.url.substring(0, 50) + '...' });
+    }
+
     return true; // Keep channel open for async response
 });
 
-console.log('[Offscreen] Ready to receive messages');
+console.log('[Offscreen] Ready to receive messages (v33.8)');

@@ -1,6 +1,6 @@
-// content.js - v33.3: Fixed Static Ads Toggle
+// content.js - v33.8: Real URL Relay
 (function () {
-    console.log('[Focus] Initializing v33.3... 👻');
+    console.log('[Focus] Initializing v33.8... 👻');
 
     // --- STATE (Settings loaded from storage) ---
     let settings = {
@@ -220,6 +220,7 @@
 
     // Background communication
     window.addEventListener('message', (event) => {
+        // Handle extracted URLs from JSON (template URLs)
         if (event.data.type === 'FOCUS_SEND_TO_BACKGROUND') {
             console.log(`[Focus DEBUG] 📨 content.js received ${event.data.urls?.length || 0} URLs from inject.js`);
 
@@ -236,6 +237,27 @@
                 console.log('[Focus DEBUG] ✅ Forwarded URLs to background.js');
             } catch (e) {
                 console.log('[Focus DEBUG] ❌ Error forwarding to background:', e.message);
+            }
+        }
+
+        // Handle REAL tracking URLs captured from outgoing requests
+        if (event.data.type === 'FOCUS_REAL_TRACKING_URL') {
+            const { method, url } = event.data;
+            console.log(`[Focus RELAY] 🚀 Captured REAL URL via ${method}, forwarding to offscreen...`);
+
+            if (!settings.offscreenEnabled) {
+                console.log('[Focus RELAY] ⚠️ Offscreen disabled');
+                return;
+            }
+
+            try {
+                chrome.runtime.sendMessage({
+                    type: 'REPLAY_REAL_URL',
+                    method: method,
+                    url: url
+                });
+            } catch (e) {
+                console.log('[Focus RELAY] ❌ Error:', e.message);
             }
         }
     });

@@ -1,6 +1,6 @@
-// inject.js - v33.7: YouTube Focus Mode - Content Optimizer + URL Tracking
+// inject.js - v33.8: YouTube Focus Mode - Real URL Capture & Replay
 (function () {
-    console.log('[Focus] Content Engine v33.7 🎯');
+    console.log('[Focus] Content Engine v33.8 🎯');
 
     // Configuration
     const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/selectors.json';

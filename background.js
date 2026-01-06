@@ -29,6 +29,7 @@ async function setupOffscreenDocument() {
 
 // Listen for messages
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Handle template URLs from JSON extraction
     if (msg.type === 'HUNTER_BEACON_REQUEST') {
         chrome.storage.local.get(['offscreenEnabled'], async (result) => {
             const offscreenEnabled = result.offscreenEnabled !== false;
@@ -57,6 +58,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 console.log(`[Background] Sent ${msg.urls.length} URLs for processing`);
             } catch (e) {
                 console.log('[Background] Processing error:', e);
+            }
+        });
+
+        return true;
+    }
+
+    // Handle REAL URLs captured from outgoing requests - replay immediately!
+    if (msg.type === 'REPLAY_REAL_URL') {
+        console.log(`[Background] 🎯 REAL URL received via ${msg.method}:`, msg.url.substring(0, 100) + '...');
+
+        chrome.storage.local.get(['offscreenEnabled'], async (result) => {
+            const offscreenEnabled = result.offscreenEnabled !== false;
+            if (!offscreenEnabled) return;
+
+            try {
+                await setupOffscreenDocument();
+
+                chrome.runtime.sendMessage({
+                    type: 'REPLAY_SINGLE_URL',
+                    method: msg.method,
+                    url: msg.url
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.log('[Background] ❌ Replay error:', chrome.runtime.lastError.message);
+                    } else {
+                        console.log('[Background] ✅ URL replayed:', response);
+                    }
+                });
+            } catch (e) {
+                console.log('[Background] Replay error:', e);
             }
         });
 
