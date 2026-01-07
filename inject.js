@@ -1,48 +1,6 @@
-// inject.js - v44.0: Surgeon + Remote Brain + Anti-Enforcement 🧠
+// inject.js - v44.1: AdBlock Bypass - clientScreen Fake Technique 🎭
 (function () {
-    console.log('[Inject] Surgeon Ready 🔪');
-
-    // --- DEFAULT CONFIG (Fallback) ---
-    let CONFIG = {
-        adJsonKeys: ['adPlacements', 'adSlots', 'playerAds', 'adBreakHeartbeatParams', 'adBlockingInfo'],
-        popupJsonKeys: ['enforcementMessageViewModel', 'reloadContinuationData', 'promotedSparklesWebRenderer', 'adRenderer', 'bannerPromoRenderer', 'compactPromotedItemRenderer', 'playerErrorMessageRenderer', 'mealbarPromoRenderer', 'statementBannerRenderer'],
-        trackingKeys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping']
-    };
-
-    // URL Config
-    const CONFIG_URL = 'https://raw.githubusercontent.com/Harrydtt/youtube-ad-hunter/main/config.json';
-    const CACHE_TIME = 3600 * 1000;
-
-    // --- LOAD REMOTE CONFIG ---
-    const loadConfig = async () => {
-        try {
-            const cached = localStorage.getItem('hunter_config');
-            const lastUpdate = localStorage.getItem('hunter_config_time');
-
-            if (cached && lastUpdate && Date.now() - parseInt(lastUpdate) < CACHE_TIME) {
-                const data = JSON.parse(cached);
-                if (data.ad_keys) CONFIG.adJsonKeys = data.ad_keys;
-                if (data.popup_keys) CONFIG.popupJsonKeys = data.popup_keys;
-                if (data.tracking_keys) CONFIG.trackingKeys = data.tracking_keys;
-                return;
-            }
-
-            const res = await fetch(CONFIG_URL);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.ad_keys) CONFIG.adJsonKeys = data.ad_keys;
-                if (data.popup_keys) CONFIG.popupJsonKeys = data.popup_keys;
-                if (data.tracking_keys) CONFIG.trackingKeys = data.tracking_keys;
-
-                localStorage.setItem('hunter_config', JSON.stringify(data));
-                localStorage.setItem('hunter_config_time', Date.now().toString());
-                console.log('[Inject] Updated Config from GitHub ☁️');
-            }
-        } catch (e) {
-            console.warn('[Inject] Config Fetch Failed, using default');
-        }
-    };
-    loadConfig();
+    console.log('[Inject] AdBlock Bypass v44.1 Ready 🎭');
 
     // --- STATE ---
     let isEnabled = true;
@@ -51,184 +9,202 @@
         if (e.data.type === 'HUNTER_TOGGLE_JSON') isEnabled = e.data.enabled;
     });
 
-    // --- CORE 1: URL EXTRACTION (Móc túi trước khi cắt) ---
-    const extractUrlsFromObject = (obj, urls = [], depth = 0) => {
-        if (!obj || depth > 15) return urls;
+    // --- CONFIG ---
+    const AD_KEYS = ['adPlacements', 'adSlots', 'playerAds', 'adBreakHeartbeatParams', 'adBlockingInfo'];
+    const POPUP_KEYS = ['enforcementMessageViewModel', 'reloadContinuationData', 'bannerPromoRenderer',
+        'mealbarPromoRenderer', 'statementBannerRenderer', 'promotedSparklesWebRenderer'];
 
-        if (typeof obj === 'string') {
-            if (obj.includes('ptracking') || obj.includes('/pagead/') || obj.includes('/api/stats/') || obj.includes('doubleclick.net')) {
-                urls.push(obj);
-            }
-        } else if (typeof obj === 'object') {
-            for (const key of CONFIG.trackingKeys) {
-                if (obj[key]) {
-                    const val = obj[key];
-                    if (typeof val === 'string') urls.push(val);
-                    else if (Array.isArray(val)) {
-                        val.forEach(v => {
-                            if (typeof v === 'string') urls.push(v);
-                            else if (v && v.baseUrl) urls.push(v.baseUrl);
-                        });
-                    }
-                }
-            }
-            Object.values(obj).forEach(val => extractUrlsFromObject(val, urls, depth + 1));
+    // --- TECHNIQUE 1: SET CONSTANT (Make ad properties undefined) ---
+    const setUndefined = (obj, path) => {
+        const parts = path.split('.');
+        let current = obj;
+        for (let i = 0; i < parts.length - 1; i++) {
+            if (!current[parts[i]]) return;
+            current = current[parts[i]];
         }
-        return urls;
-    };
-
-    // --- CORE 2: DE-MONETIZATION (Lừa Player) ---
-    const sanitizeData = (data) => {
-        if (!data || typeof data !== 'object') return;
-
-        // 1. Force playabilityStatus = OK
-        if (data.playabilityStatus) {
-            if (data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
-                data.playabilityStatus.status = 'OK';
-                data.playabilityStatus.playableInEmbed = true;
-                if (data.playabilityStatus.errorScreen) delete data.playabilityStatus.errorScreen;
-                console.log('[Inject] 🚑 Forced playabilityStatus to OK');
-            }
-        }
-
-        // 2. FORCE isMonetized = false
-        if (data.videoDetails) {
-            data.videoDetails.isMonetized = false;
-        }
-        if (data.playerResponse?.videoDetails) {
-            data.playerResponse.videoDetails.isMonetized = false;
-        }
-
-        // 3. Cắt đứt liên lạc với Ad Server
-        if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
-        if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
-
-        // 4. Remove ad-related signals
-        if (data.adSignalsInfo) delete data.adSignalsInfo;
-        if (data.attestation) delete data.attestation;
-        if (data.adPlacements) delete data.adPlacements;
-
-        // 5. NUKE AdBlock Enforcement
-        if (data.adBlockingInfo) delete data.adBlockingInfo;
-        if (data.playerResponse?.adBlockingInfo) delete data.playerResponse.adBlockingInfo;
-
-        // 6. NUKE auxiliaryUi chứa Popup Enforcement
-        if (data.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
-            console.log('[Inject] ☢️ Nuked auxiliaryUi (Popup Payload)');
-            delete data.auxiliaryUi;
-        }
-        if (data.playerResponse?.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
-            delete data.playerResponse.auxiliaryUi;
+        if (current[parts[parts.length - 1]] !== undefined) {
+            current[parts[parts.length - 1]] = undefined;
         }
     };
 
-    // --- MAIN PROCESSOR ---
-    const processObject = (obj, processor) => {
-        if (!obj || typeof obj !== 'object') return obj;
-        if (Array.isArray(obj)) return obj.map(item => processObject(item, processor)).filter(Boolean);
+    // --- TECHNIQUE 2: JSON PRUNE (Remove ad data from JSON) ---
+    const pruneJSON = (data) => {
+        if (!data || typeof data !== 'object') return data;
+        if (Array.isArray(data)) return data.map(pruneJSON).filter(Boolean);
 
         const result = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                if (key === 'playabilityStatus' || key === 'videoDetails' || key === 'playerResponse') {
-                    sanitizeData({ [key]: obj[key] });
-                }
-
-                const processed = processor(key, obj[key]);
-                if (processed !== undefined) {
-                    result[key] = processObject(processed, processor);
-                }
+        for (const key in data) {
+            if (AD_KEYS.includes(key) || POPUP_KEYS.includes(key)) {
+                continue; // Skip ad/popup keys
             }
+            result[key] = pruneJSON(data[key]);
         }
         return result;
     };
 
-    const processYoutubeData = (data) => {
-        if (!isEnabled || !data) return data;
+    // --- TECHNIQUE 3: FORCE google_ad_status = 1 ---
+    try {
+        Object.defineProperty(window, 'google_ad_status', {
+            value: 1,
+            writable: false,
+            configurable: false
+        });
+    } catch (e) { }
 
-        try {
-            // De-Monetize first
-            sanitizeData(data);
-
-            let allUrls = [];
-
-            const filterAndExtract = (key, value) => {
-                // Ad keys -> Extract URLs -> Remove
-                if (CONFIG.adJsonKeys.includes(key)) {
-                    const urls = extractUrlsFromObject(value);
-                    if (urls.length > 0) {
-                        allUrls.push(...urls);
-                        console.log(`[Inject] 📡 Extracted ${urls.length} URLs from ${key}`);
-                    }
-                    return undefined;
-                }
-                // Popup keys -> Remove
-                if (CONFIG.popupJsonKeys.includes(key)) return undefined;
-
-                return value;
-            };
-
-            const processedData = processObject(data, filterAndExtract);
-
-            // Send URLs to Offscreen
-            if (allUrls.length > 0) {
-                console.log(`[Inject] 📤 Sending ${allUrls.length} template URLs to offscreen`);
-                window.postMessage({ type: 'HUNTER_BEACON', urls: allUrls }, '*');
-            }
-
-            return processedData;
-
-        } catch (e) {
-            console.error('[Inject] Error:', e);
-            return data;
+    // --- TECHNIQUE 4: FAKE clientScreen (THE KEY TO BYPASS POPUP!) ---
+    const originalStringify = JSON.stringify;
+    JSON.stringify = function (value, replacer, space) {
+        let result = originalStringify.call(this, value, replacer, space);
+        if (isEnabled && result) {
+            // Replace clientScreen: WATCH → ADUNIT (YouTube thinks we're in ad unit)
+            result = result.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
+            // Also handle isWebNativeShareAvailable injection
+            result = result.replace(
+                /isWebNativeShareAvailable":true}}/g,
+                'isWebNativeShareAvailable":true},"clientScreen":"ADUNIT"}'
+            );
         }
+        return result;
     };
 
-    // --- HOOKS ---
-    // 1. Hook JSON.parse
+    // --- TECHNIQUE 5: JSON.parse HOOK (Prune incoming data) ---
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
-        const data = originalParse.call(this, text, reviver);
-        return processYoutubeData(data);
+        let data = originalParse.call(this, text, reviver);
+        if (!isEnabled) return data;
+
+        try {
+            // Prune ad data
+            if (data && typeof data === 'object') {
+                AD_KEYS.forEach(key => {
+                    if (data[key]) {
+                        console.log(`[Inject] �️ Pruned ${key}`);
+                        delete data[key];
+                    }
+                    if (data.playerResponse?.[key]) {
+                        delete data.playerResponse[key];
+                    }
+                });
+
+                POPUP_KEYS.forEach(key => {
+                    if (data[key]) delete data[key];
+                    if (data.playerResponse?.[key]) delete data.playerResponse[key];
+                });
+
+                // Force isMonetized = false
+                if (data.videoDetails) data.videoDetails.isMonetized = false;
+                if (data.playerResponse?.videoDetails) data.playerResponse.videoDetails.isMonetized = false;
+
+                // Nuke auxiliaryUi popup
+                if (data.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
+                    delete data.auxiliaryUi;
+                }
+                if (data.playerResponse?.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
+                    delete data.playerResponse.auxiliaryUi;
+                }
+
+                // Force playabilityStatus OK
+                if (data.playabilityStatus?.status &&
+                    data.playabilityStatus.status !== 'OK' &&
+                    data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
+                    data.playabilityStatus.status = 'OK';
+                    if (data.playabilityStatus.errorScreen) delete data.playabilityStatus.errorScreen;
+                }
+            }
+        } catch (e) { }
+
+        return data;
     };
 
-    // 2. Hook Response.json
+    // --- TECHNIQUE 6: Response.json HOOK ---
     const originalJson = Response.prototype.json;
     Response.prototype.json = async function () {
-        const data = await originalJson.call(this);
-        return processYoutubeData(data);
+        let data = await originalJson.call(this);
+        if (!isEnabled) return data;
+
+        try {
+            if (data && typeof data === 'object') {
+                AD_KEYS.forEach(key => {
+                    if (data[key]) {
+                        console.log(`[Inject] �️ Pruned from fetch: ${key}`);
+                        delete data[key];
+                    }
+                });
+                POPUP_KEYS.forEach(key => {
+                    if (data[key]) delete data[key];
+                });
+            }
+        } catch (e) { }
+
+        return data;
     };
 
-    // --- PROPERTY TRAPS (Bắt data TRƯỚC khi YouTube đọc) ---
+    // --- TECHNIQUE 7: PROPERTY TRAPS ---
     let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
     let _ytInitialData = window.ytInitialData;
 
     Object.defineProperty(window, 'ytInitialPlayerResponse', {
         configurable: true,
-        get: function () { return _ytInitialPlayerResponse; },
-        set: function (value) {
-            console.log('[Inject] 🪤 TRAPPED ytInitialPlayerResponse SET!');
-            _ytInitialPlayerResponse = processYoutubeData(value);
+        get() { return _ytInitialPlayerResponse; },
+        set(value) {
+            if (isEnabled && value) {
+                AD_KEYS.forEach(key => { if (value[key]) delete value[key]; });
+                if (value.videoDetails) value.videoDetails.isMonetized = false;
+                if (value.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
+                    delete value.auxiliaryUi;
+                }
+                console.log('[Inject] 🪤 Trapped ytInitialPlayerResponse');
+            }
+            _ytInitialPlayerResponse = value;
         }
     });
 
     Object.defineProperty(window, 'ytInitialData', {
         configurable: true,
-        get: function () { return _ytInitialData; },
-        set: function (value) {
-            console.log('[Inject] 🪤 TRAPPED ytInitialData SET!');
-            _ytInitialData = processYoutubeData(value);
+        get() { return _ytInitialData; },
+        set(value) {
+            if (isEnabled && value) {
+                POPUP_KEYS.forEach(key => { if (value[key]) delete value[key]; });
+            }
+            _ytInitialData = value;
         }
     });
 
-    // Process if already exists
+    // Process existing data
     if (_ytInitialPlayerResponse) {
-        console.log('[Inject] Cleaning existing ytInitialPlayerResponse');
-        _ytInitialPlayerResponse = processYoutubeData(_ytInitialPlayerResponse);
-    }
-    if (_ytInitialData) {
-        _ytInitialData = processYoutubeData(_ytInitialData);
+        AD_KEYS.forEach(key => { if (_ytInitialPlayerResponse[key]) delete _ytInitialPlayerResponse[key]; });
+        if (_ytInitialPlayerResponse.videoDetails) _ytInitialPlayerResponse.videoDetails.isMonetized = false;
     }
 
-    console.log('[Inject] v44.0 Active: Hooks + Property Traps ✅');
+    // --- TECHNIQUE 8: XHR HOOK (For older API calls) ---
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function (method, url) {
+        this._url = url;
+        return originalXHROpen.apply(this, arguments);
+    };
+
+    XMLHttpRequest.prototype.send = function (body) {
+        if (isEnabled && body && typeof body === 'string') {
+            try {
+                // Replace clientScreen in outgoing XHR requests
+                body = body.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
+            } catch (e) { }
+        }
+        return originalXHRSend.call(this, body);
+    };
+
+    // --- TECHNIQUE 9: Fetch HOOK (Modify outgoing requests) ---
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+        if (isEnabled && init?.body && typeof init.body === 'string') {
+            try {
+                init.body = init.body.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
+            } catch (e) { }
+        }
+        return originalFetch.apply(this, arguments);
+    };
+
+    console.log('[Inject] v44.1 Active: clientScreen Bypass ✅');
 })();
