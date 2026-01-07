@@ -183,14 +183,42 @@
         return processYoutubeData(data);
     };
 
-    // Initial Data Cleanup
-    if (window.ytInitialPlayerResponse) {
-        console.log('[Focus] Cleaning initial player response');
-        window.ytInitialPlayerResponse = processYoutubeData(window.ytInitialPlayerResponse);
+    // --- PROPERTY TRAPS (Bắt data TRƯỚC khi YouTube đọc) ---
+    let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
+    let _ytInitialData = window.ytInitialData;
+
+    // Trap ytInitialPlayerResponse
+    Object.defineProperty(window, 'ytInitialPlayerResponse', {
+        configurable: true,
+        get: function () {
+            return _ytInitialPlayerResponse;
+        },
+        set: function (value) {
+            console.log('[Focus] 🪤 TRAPPED ytInitialPlayerResponse SET!');
+            _ytInitialPlayerResponse = processYoutubeData(value);
+        }
+    });
+
+    // Trap ytInitialData
+    Object.defineProperty(window, 'ytInitialData', {
+        configurable: true,
+        get: function () {
+            return _ytInitialData;
+        },
+        set: function (value) {
+            console.log('[Focus] 🪤 TRAPPED ytInitialData SET!');
+            _ytInitialData = processYoutubeData(value);
+        }
+    });
+
+    // Also process if already exists (fallback)
+    if (_ytInitialPlayerResponse) {
+        console.log('[Focus] Cleaning existing ytInitialPlayerResponse');
+        _ytInitialPlayerResponse = processYoutubeData(_ytInitialPlayerResponse);
     }
-    if (window.ytInitialData) {
-        window.ytInitialData = processYoutubeData(window.ytInitialData);
+    if (_ytInitialData) {
+        _ytInitialData = processYoutubeData(_ytInitialData);
     }
 
-    console.log('[Focus] v35.3 Active: Extract-Before-Cut ✅');
+    console.log('[Focus] v35.6 Active: Property Traps ✅');
 })();
