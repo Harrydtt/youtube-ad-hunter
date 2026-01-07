@@ -1,142 +1,18 @@
-// background.js - v44.4: Dynamic Scriptlet Injection + TrustedTypes Fix
-console.log('[Background] v44.4 Initializing...');
-
-// --- SCRIPTLET CODE (from sample extension) ---
-const SCRIPTLET_CODE = `
-// ====== SCRIPTLET 1: SET-CONSTANT ======
-try { Object.defineProperty(window, 'google_ad_status', { value: 1, writable: false }); } catch(e){}
-try { 
-    let _ytPlayer = window.ytInitialPlayerResponse;
-    Object.defineProperty(window, 'ytInitialPlayerResponse', {
-        configurable: true,
-        get() { return _ytPlayer; },
-        set(v) {
-            if (v) {
-                if (v.adPlacements) v.adPlacements = undefined;
-                if (v.adSlots) v.adSlots = undefined;
-                if (v.playerAds) v.playerAds = undefined;
-                if (v.videoDetails) v.videoDetails.isMonetized = false;
-            }
-            _ytPlayer = v;
-        }
-    });
-} catch(e){}
-
-// ====== SCRIPTLET 2: JSON-PRUNE ======
-const AD_KEYS = ['adPlacements','adSlots','playerAds','adBreakHeartbeatParams','adBlockingInfo'];
-const POPUP_KEYS = ['enforcementMessageViewModel','reloadContinuationData'];
-const nativeParse = JSON.parse;
-JSON.parse = function(text, reviver) {
-    let data = nativeParse.call(this, text, reviver);
-    try {
-        if (data && typeof data === 'object') {
-            AD_KEYS.forEach(k => { if(data[k]) delete data[k]; if(data.playerResponse?.[k]) delete data.playerResponse[k]; });
-            POPUP_KEYS.forEach(k => { if(data[k]) delete data[k]; });
-            if (data.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) delete data.auxiliaryUi;
-        }
-    } catch(e){}
-    return data;
-};
-
-// ====== SCRIPTLET 3: JSON-PRUNE-FETCH-RESPONSE ======
-const nativeJson = Response.prototype.json;
-Response.prototype.json = async function() {
-    let data = await nativeJson.call(this);
-    try {
-        if (data && typeof data === 'object') {
-            AD_KEYS.forEach(k => { if(data[k]) delete data[k]; });
-            POPUP_KEYS.forEach(k => { if(data[k]) delete data[k]; });
-        }
-    } catch(e){}
-    return data;
-};
-
-// ====== SCRIPTLET 4: ADJUST-SETTIMEOUT (CRITICAL!) ======
-const nativeSetTimeout = window.setTimeout;
-window.setTimeout = function(cb, delay, ...args) {
-    if (delay >= 15000 && delay <= 20000) delay = 1;
-    return nativeSetTimeout.call(this, cb, delay, ...args);
-};
-
-// ====== SCRIPTLET 5: TRUSTED-REPLACE-OUTBOUND-TEXT ======
-const nativeStringify = JSON.stringify;
-JSON.stringify = function(value, replacer, space) {
-    let result = nativeStringify.call(this, value, replacer, space);
-    if (result) {
-        result = result.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
-    }
-    return result;
-};
-
-console.log('[Inject] v44.3 Scriptlets Active ✅');
-`;
-
-// Inject scriptlets into page with TrustedTypes support
-async function injectScriptlets(tabId) {
-    try {
-        await chrome.scripting.executeScript({
-            target: { tabId },
-            func: (code) => {
-                try {
-                    // Handle TrustedTypes CSP
-                    if (window.trustedTypes && window.trustedTypes.createPolicy) {
-                        const policy = window.trustedTypes.createPolicy('AbyPolicy', {
-                            createScript: (input) => input
-                        });
-                        const script = document.createElement('script');
-                        script.textContent = policy.createScript(code);
-                        (document.head || document.documentElement).appendChild(script);
-                        script.remove();
-                    } else {
-                        // Fallback for non-TrustedTypes
-                        const script = document.createElement('script');
-                        script.textContent = code;
-                        (document.head || document.documentElement).appendChild(script);
-                        script.remove();
-                    }
-                } catch (e) {
-                    console.log('[AbyInject] TrustedTypes error, using Function:', e.message);
-                    try {
-                        new Function(code)();
-                    } catch (e2) { }
-                }
-            },
-            args: [SCRIPTLET_CODE],
-            injectImmediately: true,
-            world: 'MAIN'
-        });
-        console.log(`[Background] ✅ Injected scriptlets into tab ${tabId}`);
-    } catch (e) {
-        // Tab may not be ready or accessible
-    }
-}
-
-// Listen for YouTube tab navigation
-chrome.webNavigation.onCommitted.addListener((details) => {
-    if (details.frameId === 0) { // Main frame only
-        injectScriptlets(details.tabId);
-    }
-}, { url: [{ hostContains: 'youtube.com' }] });
-
-// Also inject when tab is updated
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'loading' && tab.url?.includes('youtube.com')) {
-        injectScriptlets(tabId);
-    }
-});
+// background.js - v44.5: Network Blocking Only (inject.js handles scriptlets)
+console.log('[Background] v44.5 Initializing...');
 
 // --- NETWORK BLOCKING RULES ---
 const NETWORK_RULES = [
-    { id: 1, urlFilter: '||youtube.com/pagead/', action: 'block' },
-    { id: 2, urlFilter: '||youtube.com/youtubei/v1/player/ad_break', action: 'block' },
-    { id: 3, urlFilter: '||youtube.com/get_midroll_', action: 'block' },
-    { id: 4, urlFilter: '||youtube.com/api/stats/ads', action: 'block' },
-    { id: 5, urlFilter: '||googlesyndication.com', action: 'block' },
-    { id: 6, urlFilter: '||googleads.g.doubleclick.net', action: 'block' },
-    { id: 7, urlFilter: '||doubleclick.net/pagead/', action: 'block' },
-    { id: 8, urlFilter: '||youtube.com/ptracking', action: 'block' },
-    { id: 9, urlFilter: '||youtube.com/pagead/interaction/', action: 'block' },
-    { id: 10, urlFilter: '||static.doubleclick.net/instream/ad_status.js', action: 'block' },
+    { id: 1, urlFilter: '||youtube.com/pagead/' },
+    { id: 2, urlFilter: '||youtube.com/youtubei/v1/player/ad_break' },
+    { id: 3, urlFilter: '||youtube.com/get_midroll_' },
+    { id: 4, urlFilter: '||youtube.com/api/stats/ads' },
+    { id: 5, urlFilter: '||googlesyndication.com' },
+    { id: 6, urlFilter: '||googleads.g.doubleclick.net' },
+    { id: 7, urlFilter: '||doubleclick.net/pagead/' },
+    { id: 8, urlFilter: '||youtube.com/ptracking' },
+    { id: 9, urlFilter: '||youtube.com/pagead/interaction/' },
+    { id: 10, urlFilter: '||static.doubleclick.net/instream/ad_status.js' },
 ];
 
 async function setupBlockingRules() {
@@ -203,4 +79,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-console.log('[Background] v44.4 Ready ✅');
+console.log('[Background] v44.5 Ready ✅');
