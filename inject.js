@@ -1,6 +1,6 @@
-// inject.js - v44.1: AdBlock Bypass - clientScreen Fake Technique 🎭
+// inject.js - v44.2: AdBlock Bypass with Scriptlet Techniques 🎭
 (function () {
-    console.log('[Inject] AdBlock Bypass v44.1 Ready 🎭');
+    console.log('[Inject] AdBlock Bypass v44.2 Ready 🎭');
 
     // --- STATE ---
     let isEnabled = true;
@@ -14,51 +14,32 @@
     const POPUP_KEYS = ['enforcementMessageViewModel', 'reloadContinuationData', 'bannerPromoRenderer',
         'mealbarPromoRenderer', 'statementBannerRenderer', 'promotedSparklesWebRenderer'];
 
-    // --- TECHNIQUE 1: SET CONSTANT (Make ad properties undefined) ---
-    const setUndefined = (obj, path) => {
-        const parts = path.split('.');
-        let current = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            if (!current[parts[i]]) return;
-            current = current[parts[i]];
-        }
-        if (current[parts[parts.length - 1]] !== undefined) {
-            current[parts[parts.length - 1]] = undefined;
-        }
-    };
-
-    // --- TECHNIQUE 2: JSON PRUNE (Remove ad data from JSON) ---
-    const pruneJSON = (data) => {
-        if (!data || typeof data !== 'object') return data;
-        if (Array.isArray(data)) return data.map(pruneJSON).filter(Boolean);
-
-        const result = {};
-        for (const key in data) {
-            if (AD_KEYS.includes(key) || POPUP_KEYS.includes(key)) {
-                continue; // Skip ad/popup keys
-            }
-            result[key] = pruneJSON(data[key]);
-        }
-        return result;
-    };
-
-    // --- TECHNIQUE 3: FORCE google_ad_status = 1 ---
+    // ====== SCRIPTLET 1: SET-CONSTANT ======
+    // Force ad properties to undefined/1
     try {
-        Object.defineProperty(window, 'google_ad_status', {
-            value: 1,
-            writable: false,
-            configurable: false
-        });
+        Object.defineProperty(window, 'google_ad_status', { value: 1, writable: false, configurable: false });
     } catch (e) { }
 
-    // --- TECHNIQUE 4: FAKE clientScreen (THE KEY TO BYPASS POPUP!) ---
+    // ====== SCRIPTLET 2: ADJUST-SETTIMEOUT (CRITICAL!) ======
+    // Speed up ad-related timeouts so they fail immediately
+    const nativeSetTimeout = window.setTimeout;
+    window.setTimeout = function (callback, delay, ...args) {
+        if (isEnabled && delay >= 15000 && delay <= 20000) {
+            // This is likely an ad verification timeout - make it instant
+            delay = 1;
+            console.log('[Inject] ⚡ Accelerated ad timeout');
+        }
+        return nativeSetTimeout.call(this, callback, delay, ...args);
+    };
+
+    // ====== SCRIPTLET 3: TRUSTED-REPLACE-OUTBOUND-TEXT ======
+    // Replace clientScreen in JSON.stringify output
     const originalStringify = JSON.stringify;
     JSON.stringify = function (value, replacer, space) {
         let result = originalStringify.call(this, value, replacer, space);
         if (isEnabled && result) {
-            // Replace clientScreen: WATCH → ADUNIT (YouTube thinks we're in ad unit)
+            // Make YouTube think we're in ad unit mode
             result = result.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
-            // Also handle isWebNativeShareAvailable injection
             result = result.replace(
                 /isWebNativeShareAvailable":true}}/g,
                 'isWebNativeShareAvailable":true},"clientScreen":"ADUNIT"}'
@@ -67,25 +48,24 @@
         return result;
     };
 
-    // --- TECHNIQUE 5: JSON.parse HOOK (Prune incoming data) ---
+    // ====== SCRIPTLET 4: JSON-PRUNE (JSON.parse hook) ======
     const originalParse = JSON.parse;
     JSON.parse = function (text, reviver) {
         let data = originalParse.call(this, text, reviver);
         if (!isEnabled) return data;
 
         try {
-            // Prune ad data
             if (data && typeof data === 'object') {
+                // Prune ad keys
                 AD_KEYS.forEach(key => {
                     if (data[key]) {
-                        console.log(`[Inject] �️ Pruned ${key}`);
+                        console.log(`[Inject] 🗑️ Pruned ${key}`);
                         delete data[key];
                     }
-                    if (data.playerResponse?.[key]) {
-                        delete data.playerResponse[key];
-                    }
+                    if (data.playerResponse?.[key]) delete data.playerResponse[key];
                 });
 
+                // Prune popup keys
                 POPUP_KEYS.forEach(key => {
                     if (data[key]) delete data[key];
                     if (data.playerResponse?.[key]) delete data.playerResponse[key];
@@ -116,7 +96,7 @@
         return data;
     };
 
-    // --- TECHNIQUE 6: Response.json HOOK ---
+    // ====== SCRIPTLET 5: JSON-PRUNE-FETCH-RESPONSE ======
     const originalJson = Response.prototype.json;
     Response.prototype.json = async function () {
         let data = await originalJson.call(this);
@@ -126,7 +106,7 @@
             if (data && typeof data === 'object') {
                 AD_KEYS.forEach(key => {
                     if (data[key]) {
-                        console.log(`[Inject] �️ Pruned from fetch: ${key}`);
+                        console.log(`[Inject] 🗑️ Pruned from fetch: ${key}`);
                         delete data[key];
                     }
                 });
@@ -139,7 +119,7 @@
         return data;
     };
 
-    // --- TECHNIQUE 7: PROPERTY TRAPS ---
+    // ====== SCRIPTLET 6: SET-CONSTANT via Property Traps ======
     let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
     let _ytInitialData = window.ytInitialData;
 
@@ -148,7 +128,8 @@
         get() { return _ytInitialPlayerResponse; },
         set(value) {
             if (isEnabled && value) {
-                AD_KEYS.forEach(key => { if (value[key]) delete value[key]; });
+                // Force undefined for ad properties (like set-constant scriptlet)
+                AD_KEYS.forEach(key => { if (value[key]) value[key] = undefined; });
                 if (value.videoDetails) value.videoDetails.isMonetized = false;
                 if (value.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
                     delete value.auxiliaryUi;
@@ -172,30 +153,57 @@
 
     // Process existing data
     if (_ytInitialPlayerResponse) {
-        AD_KEYS.forEach(key => { if (_ytInitialPlayerResponse[key]) delete _ytInitialPlayerResponse[key]; });
+        AD_KEYS.forEach(key => { if (_ytInitialPlayerResponse[key]) _ytInitialPlayerResponse[key] = undefined; });
         if (_ytInitialPlayerResponse.videoDetails) _ytInitialPlayerResponse.videoDetails.isMonetized = false;
     }
 
-    // --- TECHNIQUE 8: XHR HOOK (For older API calls) ---
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    const originalXHRSend = XMLHttpRequest.prototype.send;
+    // ====== SCRIPTLET 7: JSON-PRUNE-XHR-RESPONSE ======
+    const XHR = XMLHttpRequest.prototype;
+    const originalOpen = XHR.open;
+    const originalSend = XHR.send;
 
-    XMLHttpRequest.prototype.open = function (method, url) {
+    XHR.open = function (method, url) {
         this._url = url;
-        return originalXHROpen.apply(this, arguments);
+        return originalOpen.apply(this, arguments);
     };
 
-    XMLHttpRequest.prototype.send = function (body) {
+    XHR.send = function (body) {
+        // Replace clientScreen in outgoing requests
         if (isEnabled && body && typeof body === 'string') {
             try {
-                // Replace clientScreen in outgoing XHR requests
                 body = body.replace(/"clientScreen":"WATCH"/g, '"clientScreen":"ADUNIT"');
             } catch (e) { }
         }
-        return originalXHRSend.call(this, body);
+
+        // Hook response for XHR
+        const self = this;
+        const originalOnReady = this.onreadystatechange;
+        this.onreadystatechange = function () {
+            if (self.readyState === 4 && isEnabled) {
+                try {
+                    const url = self._url || '';
+                    // Only process player/watch requests
+                    if (url.includes('/player') || url.includes('watch?') || url.includes('get_watch')) {
+                        const text = self.responseText;
+                        if (text) {
+                            let data = JSON.parse(text);
+                            AD_KEYS.forEach(key => {
+                                if (data[key]) delete data[key];
+                                if (data.playerResponse?.[key]) delete data.playerResponse[key];
+                            });
+                            // Override responseText
+                            Object.defineProperty(self, 'responseText', { value: JSON.stringify(data) });
+                        }
+                    }
+                } catch (e) { }
+            }
+            if (originalOnReady) originalOnReady.apply(this, arguments);
+        };
+
+        return originalSend.call(this, body);
     };
 
-    // --- TECHNIQUE 9: Fetch HOOK (Modify outgoing requests) ---
+    // ====== SCRIPTLET 8: Fetch Hook for outgoing requests ======
     const originalFetch = window.fetch;
     window.fetch = function (input, init) {
         if (isEnabled && init?.body && typeof init.body === 'string') {
@@ -206,5 +214,5 @@
         return originalFetch.apply(this, arguments);
     };
 
-    console.log('[Inject] v44.1 Active: clientScreen Bypass ✅');
+    console.log('[Inject] v44.2 Active: All Scriptlets Loaded ✅');
 })();

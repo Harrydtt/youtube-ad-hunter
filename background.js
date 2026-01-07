@@ -52,7 +52,7 @@ async function setupBlockingRules() {
     }
 }
 
-// Initialize blocking on startup
+// Initialize - Setup blocking rules
 setupBlockingRules();
 
 // Re-setup on install/update
