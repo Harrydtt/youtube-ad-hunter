@@ -44,7 +44,7 @@
     };
 
     setInterval(() => {
-        if (!active) return;
+        if (!active || !staticOn) return;
 
         // Text Check
         document.querySelectorAll('tp-yt-paper-dialog').forEach(dialog => {
