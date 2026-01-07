@@ -5,7 +5,7 @@
     // --- DEFAULT CONFIG (Fallback) ---
     let CONFIG = {
         adJsonKeys: ['adPlacements', 'adSlots', 'playerAds', 'adBreakHeartbeatParams', 'adBlockingInfo'],
-        popupJsonKeys: ['enforcementMessageViewModel', 'reloadContinuationData', 'promotedSparklesWebRenderer', 'adRenderer', 'bannerPromoRenderer', 'compactPromotedItemRenderer', 'playerErrorMessageRenderer', 'mealbarPromoRenderer'],
+        popupJsonKeys: ['enforcementMessageViewModel', 'reloadContinuationData', 'promotedSparklesWebRenderer', 'adRenderer', 'bannerPromoRenderer', 'compactPromotedItemRenderer', 'playerErrorMessageRenderer', 'mealbarPromoRenderer', 'statementBannerRenderer'],
         trackingKeys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping']
     };
 
