@@ -61,11 +61,12 @@
             }
         }
 
-        // 2. Tắt kiếm tiền (Cực quan trọng để không bị Popup)
+        // 2. FORCE isMonetized = false (CRITICAL - TẠO NẾU KHÔNG TỒN TẠI)
         if (data.videoDetails) {
-            if (data.videoDetails.isMonetized) {
-                data.videoDetails.isMonetized = false;
-                console.log('[Focus] 💰 Set isMonetized = false');
+            const was = data.videoDetails.isMonetized;
+            data.videoDetails.isMonetized = false;
+            if (was !== false) {
+                console.log(`[Focus] 💰 FORCED isMonetized = false (was: ${was})`);
             }
         }
         if (data.playerResponse?.videoDetails) {
@@ -75,6 +76,14 @@
         // 3. Cắt đứt liên lạc với Ad Server
         if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
         if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
+
+        // 4. Remove các ad-related signals khác
+        if (data.adSignalsInfo) delete data.adSignalsInfo;
+        if (data.attestation) delete data.attestation;
+        if (data.adPlacements) {
+            console.log(`[Focus] 🚫 Removing ${data.adPlacements.length} adPlacements from sanitize`);
+            delete data.adPlacements;
+        }
     };
 
     // --- MAIN PROCESSOR ---
