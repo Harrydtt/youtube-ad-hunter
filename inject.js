@@ -103,22 +103,33 @@
         if (!filterEnabled || !data) return data;
 
         try {
-            // DEBUG: Log cấu trúc data để xem YouTube đang gửi gì
-            if (data.videoDetails || data.playabilityStatus || data.adPlacements || data.playerAds) {
-                console.log('[Focus DEBUG] 📋 YouTube Data Structure:', {
+            // DEBUG: Log TẤT CẢ data có dấu hiệu của player hoặc ads
+            const isPlayerData = data.videoDetails || data.playabilityStatus;
+            const isAdData = data.adPlacements || data.playerAds || data.adSlots;
+
+            if (isPlayerData || isAdData) {
+                console.log('[Focus DEBUG] 📋 YouTube Data:', {
+                    TYPE: isPlayerData ? '🎬 PLAYER DATA' : '📺 SIDEBAR/OTHER',
                     hasVideoDetails: !!data.videoDetails,
                     isMonetized: data.videoDetails?.isMonetized,
+                    videoId: data.videoDetails?.videoId,
                     hasPlayabilityStatus: !!data.playabilityStatus,
-                    playabilityStatus: data.playabilityStatus?.status,
+                    status: data.playabilityStatus?.status,
                     hasAdPlacements: !!data.adPlacements,
-                    adPlacementsCount: data.adPlacements?.length || 0,
+                    adCount: data.adPlacements?.length || 0,
                     hasPlayerAds: !!data.playerAds,
-                    playerAdsCount: data.playerAds?.length || 0,
-                    hasAdSlots: !!data.adSlots,
-                    hasAdBreakHeartbeat: !!data.adBreakHeartbeatParams,
-                    hasAdSignals: !!data.adSignals,
-                    keys: Object.keys(data).filter(k => k.toLowerCase().includes('ad') || k.toLowerCase().includes('monetiz'))
+                    adKeys: Object.keys(data).filter(k => k.toLowerCase().includes('ad'))
                 });
+
+                // CRITICAL: Nếu có videoDetails, log chi tiết
+                if (data.videoDetails) {
+                    console.log('[Focus DEBUG] 🎬 videoDetails FOUND:', {
+                        videoId: data.videoDetails.videoId,
+                        title: data.videoDetails.title?.substring(0, 50),
+                        isMonetized: data.videoDetails.isMonetized,
+                        isLive: data.videoDetails.isLiveContent
+                    });
+                }
             }
 
             // Bước 1: De-Monetize (Quan trọng nhất)
