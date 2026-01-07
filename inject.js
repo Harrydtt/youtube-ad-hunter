@@ -1,16 +1,12 @@
-// inject.js - v36.0: The Anti-Enforcement Update ☢️
+// inject.js - v36.0: Anti-Enforcement Update
 (function () {
-    console.log('[Focus] Content Engine v36.0: The Nuke ☢️');
+    console.log('[Focus] Content Engine v36.0: Anti-Enforcement ☢️');
 
     let CONFIG = {
         // Key chứa quảng cáo (sẽ bị cắt)
         adJsonKeys: ['adPlacements', 'adSlots', 'playerAds', 'adBreakHeartbeatParams', 'adBlockingInfo'],
         // Key rác (popup) & Enforcement
-        popupJsonKeys: [
-            'promotedSparklesWebRenderer', 'adRenderer', 'bannerPromoRenderer',
-            'compactPromotedItemRenderer', 'playerErrorMessageRenderer',
-            'mealbarPromoRenderer', 'enforcementMessageViewModel'
-        ],
+        popupJsonKeys: ['promotedSparklesWebRenderer', 'adRenderer', 'bannerPromoRenderer', 'compactPromotedItemRenderer', 'playerErrorMessageRenderer', 'mealbarPromoRenderer', 'enforcementMessageViewModel'],
         // Key chứa link tracking (để tìm kiếm)
         trackingKeys: ['impressionEndpoints', 'adImpressionUrl', 'clickthroughEndpoint', 'start', 'firstQuartile', 'midpoint', 'thirdQuartile', 'complete', 'ping']
     };
@@ -21,14 +17,18 @@
         if (e.data.type === 'FOCUS_SET_FILTER') filterEnabled = e.data.enabled;
     });
 
-    // --- CORE 1: TRÍCH XUẤT URL ---
+    // --- CORE 1: TRÍCH XUẤT URL (Móc túi trước khi cắt) ---
     const extractUrlsFromObject = (obj, urls = [], depth = 0) => {
         if (!obj || depth > 15) return urls;
+
+        // 1. Check string trực tiếp
         if (typeof obj === 'string') {
             if (obj.includes('ptracking') || obj.includes('/pagead/') || obj.includes('/api/stats/') || obj.includes('doubleclick.net')) {
                 urls.push(obj);
             }
-        } else if (typeof obj === 'object') {
+        }
+        // 2. Check object theo key tracking chuẩn
+        else if (typeof obj === 'object') {
             for (const key of CONFIG.trackingKeys) {
                 if (obj[key]) {
                     const val = obj[key];
@@ -36,34 +36,56 @@
                     else if (Array.isArray(val)) {
                         val.forEach(v => {
                             if (typeof v === 'string') urls.push(v);
-                            else if (v.baseUrl) urls.push(v.baseUrl);
+                            else if (v.baseUrl) urls.push(v.baseUrl); // YouTube hay giấu trong baseUrl
                         });
                     }
                 }
             }
+            // Đệ quy vét cạn
             Object.values(obj).forEach(val => extractUrlsFromObject(val, urls, depth + 1));
         }
         return urls;
     };
 
-    // --- CORE 2: DE-MONETIZATION & ANTI-ENFORCEMENT (FIX POPUP) ---
+    // --- CORE 2: DE-MONETIZATION (Chữa lỗi Popup) ---
     const sanitizeData = (data) => {
         if (!data || typeof data !== 'object') return;
 
-        // 1. Force OK Status
+        // 1. Ép trạng thái OK (Fix màn hình lỗi)
         if (data.playabilityStatus) {
-            // Nếu bị kẹt ở ERROR, ép về OK
-            if (data.playabilityStatus.status === 'ERROR' || data.playabilityStatus.status === 'LOGIN_REQUIRED') {
+            if (data.playabilityStatus.status !== 'OK' && data.playabilityStatus.status !== 'LOGIN_REQUIRED') {
                 data.playabilityStatus.status = 'OK';
                 data.playabilityStatus.playableInEmbed = true;
-                data.playabilityStatus.miniplayer = { miniplayerRenderer: { playbackMode: "PLAYBACK_MODE_ALLOW" } }; // Fix lỗi miniplayer
                 if (data.playabilityStatus.errorScreen) delete data.playabilityStatus.errorScreen;
-                console.log('[Focus] 🚑 Fixed playabilityStatus (Recovered from ERROR)');
+                console.log('[Focus] 🚑 Forced playabilityStatus to OK');
             }
         }
 
-        // 2. Kill AdBlock Enforcement Flags (QUAN TRỌNG NHẤT)
-        // Đây là nguyên nhân khiến bản cũ bị lỗi
+        // 2. FORCE isMonetized = false (CRITICAL - TẠO NẾU KHÔNG TỒN TẠI)
+        if (data.videoDetails) {
+            const was = data.videoDetails.isMonetized;
+            data.videoDetails.isMonetized = false;
+            if (was !== false) {
+                console.log(`[Focus] 💰 FORCED isMonetized = false (was: ${was})`);
+            }
+        }
+        if (data.playerResponse?.videoDetails) {
+            data.playerResponse.videoDetails.isMonetized = false;
+        }
+
+        // 3. Cắt đứt liên lạc với Ad Server
+        if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
+        if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
+
+        // 4. Remove các ad-related signals khác
+        if (data.adSignalsInfo) delete data.adSignalsInfo;
+        if (data.attestation) delete data.attestation;
+        if (data.adPlacements && Array.isArray(data.adPlacements)) {
+            console.log(`[Focus] 🚫 Removing ${data.adPlacements.length} adPlacements from sanitize`);
+            delete data.adPlacements;
+        }
+
+        // 5. NUKE AdBlock Enforcement (v36.0 - FIX POPUP)
         if (data.adBlockingInfo) {
             console.log('[Focus] ☢️ Nuked adBlockingInfo');
             delete data.adBlockingInfo;
@@ -72,7 +94,7 @@
             delete data.playerResponse.adBlockingInfo;
         }
 
-        // 3. Kill Auxiliary UI (Nơi chứa Popup)
+        // 6. NUKE Auxiliary UI chứa Popup Enforcement
         if (data.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
             console.log('[Focus] ☢️ Nuked auxiliaryUi (Popup Payload)');
             delete data.auxiliaryUi;
@@ -80,14 +102,6 @@
         if (data.playerResponse?.auxiliaryUi?.messageRenderers?.enforcementMessageViewModel) {
             delete data.playerResponse.auxiliaryUi;
         }
-
-        // 4. De-Monetize
-        if (data.videoDetails) data.videoDetails.isMonetized = false;
-        if (data.playerResponse?.videoDetails) data.playerResponse.videoDetails.isMonetized = false;
-
-        // 5. Cleanup Heartbeats
-        if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
-        if (data.playerResponse?.adBreakHeartbeatParams) delete data.playerResponse.adBreakHeartbeatParams;
     };
 
     // --- MAIN PROCESSOR ---
@@ -98,8 +112,8 @@
         const result = {};
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                // Sanitization
-                if (key === 'playabilityStatus' || key === 'videoDetails' || key === 'playerResponse' || key === 'auxiliaryUi') {
+                // Áp dụng Sanitization cho các node quan trọng
+                if (key === 'playabilityStatus' || key === 'videoDetails' || key === 'playerResponse') {
                     sanitizeData({ [key]: obj[key] });
                 }
 
@@ -116,26 +130,62 @@
         if (!filterEnabled || !data) return data;
 
         try {
-            // Bước 1: De-Monetize & Nuke Enforcement
+            // DEBUG: Log TẤT CẢ data có dấu hiệu của player hoặc ads
+            const isPlayerData = data.videoDetails || data.playabilityStatus;
+            const isAdData = data.adPlacements || data.playerAds || data.adSlots;
+
+            if (isPlayerData || isAdData) {
+                console.log('[Focus DEBUG] 📋 YouTube Data:', {
+                    TYPE: isPlayerData ? '🎬 PLAYER DATA' : '📺 SIDEBAR/OTHER',
+                    hasVideoDetails: !!data.videoDetails,
+                    isMonetized: data.videoDetails?.isMonetized,
+                    videoId: data.videoDetails?.videoId,
+                    hasPlayabilityStatus: !!data.playabilityStatus,
+                    status: data.playabilityStatus?.status,
+                    hasAdPlacements: !!data.adPlacements,
+                    adCount: data.adPlacements?.length || 0,
+                    hasPlayerAds: !!data.playerAds,
+                    adKeys: Object.keys(data).filter(k => k.toLowerCase().includes('ad'))
+                });
+
+                // CRITICAL: Nếu có videoDetails, log chi tiết
+                if (data.videoDetails) {
+                    console.log('[Focus DEBUG] 🎬 videoDetails FOUND:', {
+                        videoId: data.videoDetails.videoId,
+                        title: data.videoDetails.title?.substring(0, 50),
+                        isMonetized: data.videoDetails.isMonetized,
+                        isLive: data.videoDetails.isLiveContent
+                    });
+                }
+            }
+
+            // Bước 1: De-Monetize (Quan trọng nhất)
             sanitizeData(data);
 
             let allUrls = [];
 
-            // Bước 2: Filter & Extract
+            // Bước 2: Vừa lọc vừa lấy link
             const filterAndExtract = (key, value) => {
+                // Gặp quảng cáo -> Lấy URL -> Xóa
                 if (CONFIG.adJsonKeys.includes(key)) {
                     const urls = extractUrlsFromObject(value);
-                    if (urls.length > 0) allUrls.push(...urls);
-                    return undefined;
+                    if (urls.length > 0) {
+                        allUrls.push(...urls);
+                        console.log(`[Focus] 📡 Extracted ${urls.length} URLs from ${key}`);
+                    }
+                    return undefined; // XÓA
                 }
+                // Gặp popup rác -> XÓA
                 if (CONFIG.popupJsonKeys.includes(key)) return undefined;
+
                 return value;
             };
 
             const processedData = processObject(data, filterAndExtract);
 
-            // Bước 3: Send Beacons
+            // Bước 3: Gửi "Template URL" sang Offscreen
             if (allUrls.length > 0) {
+                console.log(`[Focus] 📤 Sending ${allUrls.length} template URLs to offscreen`);
                 window.postMessage({ type: 'FOCUS_SEND_TO_BACKGROUND', urls: allUrls }, '*');
             }
 
@@ -160,24 +210,42 @@
         return processYoutubeData(data);
     };
 
-    // --- TRAPS ---
+    // --- PROPERTY TRAPS (Bắt data TRƯỚC khi YouTube đọc) ---
     let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
     let _ytInitialData = window.ytInitialData;
 
+    // Trap ytInitialPlayerResponse
     Object.defineProperty(window, 'ytInitialPlayerResponse', {
         configurable: true,
-        get: () => _ytInitialPlayerResponse,
-        set: (val) => { _ytInitialPlayerResponse = processYoutubeData(val); }
+        get: function () {
+            return _ytInitialPlayerResponse;
+        },
+        set: function (value) {
+            console.log('[Focus] 🪤 TRAPPED ytInitialPlayerResponse SET!');
+            _ytInitialPlayerResponse = processYoutubeData(value);
+        }
     });
 
+    // Trap ytInitialData
     Object.defineProperty(window, 'ytInitialData', {
         configurable: true,
-        get: () => _ytInitialData,
-        set: (val) => { _ytInitialData = processYoutubeData(val); }
+        get: function () {
+            return _ytInitialData;
+        },
+        set: function (value) {
+            console.log('[Focus] 🪤 TRAPPED ytInitialData SET!');
+            _ytInitialData = processYoutubeData(value);
+        }
     });
 
-    if (_ytInitialPlayerResponse) _ytInitialPlayerResponse = processYoutubeData(_ytInitialPlayerResponse);
-    if (_ytInitialData) _ytInitialData = processYoutubeData(_ytInitialData);
+    // Also process if already exists (fallback)
+    if (_ytInitialPlayerResponse) {
+        console.log('[Focus] Cleaning existing ytInitialPlayerResponse');
+        _ytInitialPlayerResponse = processYoutubeData(_ytInitialPlayerResponse);
+    }
+    if (_ytInitialData) {
+        _ytInitialData = processYoutubeData(_ytInitialData);
+    }
 
-    console.log('[Focus] v36.0 Active: Anti-Enforcement ☢️');
+    console.log('[Focus] v35.6 Active: Property Traps ✅');
 })();
