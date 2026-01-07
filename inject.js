@@ -80,7 +80,7 @@
         // 4. Remove các ad-related signals khác
         if (data.adSignalsInfo) delete data.adSignalsInfo;
         if (data.attestation) delete data.attestation;
-        if (data.adPlacements) {
+        if (data.adPlacements && Array.isArray(data.adPlacements)) {
             console.log(`[Focus] 🚫 Removing ${data.adPlacements.length} adPlacements from sanitize`);
             delete data.adPlacements;
         }
