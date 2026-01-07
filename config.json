@@ -69,8 +69,6 @@
     "surveySelectors": [
         ".ytp-ad-survey",
         ".ytp-ad-feedback-dialog-renderer",
-        "tp-yt-paper-dialog",
-        ".ytd-popup-container",
         "ytd-enforcement-message-view-model"
     ],
     "adShowingSelectors": [
