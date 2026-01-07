@@ -1,6 +1,6 @@
-// inject.js - v44.2: AdBlock Bypass with Scriptlet Techniques 🎭
+// inject.js - v44.3: AdBlock Bypass with Scriptlet Techniques 🎭
 (function () {
-    console.log('[Inject] AdBlock Bypass v44.2 Ready 🎭');
+    console.log('[Inject] AdBlock Bypass v44.3 Ready 🎭');
 
     // --- STATE ---
     let isEnabled = true;
@@ -214,5 +214,5 @@
         return originalFetch.apply(this, arguments);
     };
 
-    console.log('[Inject] v44.2 Active: All Scriptlets Loaded ✅');
+    console.log('[Inject] v44.3 Active: All Scriptlets Loaded ✅');
 })();

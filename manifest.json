@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Hunter v44",
-  "version": "44.1",
+  "version": "44.3",
   "description": "Modular Architecture: Manager - Surgeon - Sniper - Janitor",
   "permissions": [
     "scripting",
     "storage",
     "offscreen",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "webNavigation"
   ],
   "host_permissions": [
     "*://*.youtube.com/*",
