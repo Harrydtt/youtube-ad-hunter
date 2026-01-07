@@ -1,5 +1,5 @@
-// background.js - v44.3: Dynamic Scriptlet Injection + Network Blocking
-console.log('[Background] v44.3 Initializing...');
+// background.js - v44.4: Dynamic Scriptlet Injection + TrustedTypes Fix
+console.log('[Background] v44.4 Initializing...');
 
 // --- SCRIPTLET CODE (from sample extension) ---
 const SCRIPTLET_CODE = `
@@ -71,16 +71,35 @@ JSON.stringify = function(value, replacer, space) {
 console.log('[Inject] v44.3 Scriptlets Active ✅');
 `;
 
-// Inject scriptlets into page
+// Inject scriptlets into page with TrustedTypes support
 async function injectScriptlets(tabId) {
     try {
         await chrome.scripting.executeScript({
             target: { tabId },
             func: (code) => {
-                const script = document.createElement('script');
-                script.textContent = code;
-                (document.head || document.documentElement).appendChild(script);
-                script.remove();
+                try {
+                    // Handle TrustedTypes CSP
+                    if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                        const policy = window.trustedTypes.createPolicy('AbyPolicy', {
+                            createScript: (input) => input
+                        });
+                        const script = document.createElement('script');
+                        script.textContent = policy.createScript(code);
+                        (document.head || document.documentElement).appendChild(script);
+                        script.remove();
+                    } else {
+                        // Fallback for non-TrustedTypes
+                        const script = document.createElement('script');
+                        script.textContent = code;
+                        (document.head || document.documentElement).appendChild(script);
+                        script.remove();
+                    }
+                } catch (e) {
+                    console.log('[AbyInject] TrustedTypes error, using Function:', e.message);
+                    try {
+                        new Function(code)();
+                    } catch (e2) { }
+                }
             },
             args: [SCRIPTLET_CODE],
             injectImmediately: true,
@@ -184,4 +203,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-console.log('[Background] v44.3 Ready ✅');
+console.log('[Background] v44.4 Ready ✅');
