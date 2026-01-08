@@ -40,7 +40,7 @@
             video.muted = true;
             video.style.opacity = '0';
             if (!isNaN(video.duration) && video.duration > 0) {
-                if (video.currentTime < video.duration - 0.1) video.currentTime = video.duration - 0.1;
+                // if (video.currentTime < video.duration - 0.1) video.currentTime = video.duration - 0.1;
             }
             video.playbackRate = 16.0;
 
