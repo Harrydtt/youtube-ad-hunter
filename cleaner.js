@@ -1,21 +1,20 @@
-// cleaner.js - v45.0: Janitor + Remote Selectors
+// cleaner.js - v45.3: Janitor (INDEPENDENT - only checks cleanerEnabled)
 (function () {
     console.log('[Cleaner] Janitor Ready 🧹');
 
-    let active = true;
     let cleanerOn = true;
     let POPUP_SELECTORS = ['ytd-enforcement-message-view-model', 'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)'];
-    let HIDE_SELECTORS = ['#masthead-ad', '#player-ads', 'ytd-ad-slot-renderer']; // Default
+    let HIDE_SELECTORS = ['#masthead-ad', '#player-ads', 'ytd-ad-slot-renderer'];
 
     const CSS_ID = 'hunter-cleaner-css';
-    const POPUP_KEYWORDS = ['Ad blockers', 'Terms of Service', 'trình chặn quảng cáo'];
+    const POPUP_KEYWORDS = ['Ad blockers', 'Terms of Service', 'trình chặn quảng cáo', 'Trình chặn quảng cáo'];
 
+    // Load Settings - ONLY check cleanerEnabled, NOT ads
     const updateState = () => {
-        chrome.storage.local.get(['ads', 'cleanerEnabled', 'selectors'], (res) => {
-            active = res.ads !== false;
+        chrome.storage.local.get(['cleanerEnabled', 'selectors'], (res) => {
             cleanerOn = res.cleanerEnabled !== false;
+            console.log('[Cleaner] State updated: cleanerOn =', cleanerOn);
 
-            // Update Selectors from Remote
             if (res.selectors) {
                 if (res.selectors.surveySelectors) POPUP_SELECTORS = res.selectors.surveySelectors;
                 if (res.selectors.adHideSelectors) HIDE_SELECTORS = res.selectors.adHideSelectors;
@@ -28,7 +27,7 @@
 
     const applyCss = () => {
         const existing = document.getElementById(CSS_ID);
-        if (active && cleanerOn) {
+        if (cleanerOn) {
             const cssText = HIDE_SELECTORS.join(', ') + ' { display: none !important; }';
             if (!existing) {
                 const style = document.createElement('style');
@@ -36,7 +35,7 @@
                 style.textContent = cssText;
                 (document.head || document.documentElement).appendChild(style);
             } else {
-                existing.textContent = cssText; // Update content nếu selector đổi
+                existing.textContent = cssText;
             }
         } else {
             if (existing) existing.remove();
@@ -44,9 +43,9 @@
     };
 
     setInterval(() => {
-        if (!active || !cleanerOn) return;
+        if (!cleanerOn) return;
 
-        // Text Check
+        // Text Check - remove anti-adblock popups
         document.querySelectorAll('tp-yt-paper-dialog').forEach(dialog => {
             if (dialog.style.display === 'none') return;
             if (POPUP_KEYWORDS.some(kw => dialog.innerText.includes(kw))) {
@@ -54,6 +53,7 @@
                 document.querySelector('tp-yt-iron-overlay-backdrop')?.remove();
                 const video = document.querySelector('video');
                 if (video && video.paused) video.play();
+                console.log('[Cleaner] Removed anti-adblock popup');
             }
         });
 

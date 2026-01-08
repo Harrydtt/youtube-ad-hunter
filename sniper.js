@@ -1,19 +1,16 @@
-// sniper.js - v45.0: Speedster + Remote Selectors
+// sniper.js - v45.3: Speedster (INDEPENDENT - only checks sniperEnabled)
 (function () {
     console.log('[Sniper] Speedster Ready ⚡');
 
-    let active = true;
     let sniperOn = true;
-    // Default selectors
     let SKIP_SELECTORS = ['.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.videoAdUiSkipButton', '.ytp-skip-ad-button'];
 
-    // Load Settings & Selectors
+    // Load Settings & Selectors - ONLY check sniperEnabled, NOT ads
     const syncState = () => {
-        chrome.storage.local.get(['ads', 'sniperEnabled', 'selectors'], (res) => {
-            active = res.ads !== false;
+        chrome.storage.local.get(['sniperEnabled', 'selectors'], (res) => {
             sniperOn = res.sniperEnabled !== false;
+            console.log('[Sniper] State updated: sniperOn =', sniperOn);
 
-            // Nếu có selectors từ GitHub thì dùng
             if (res.selectors && res.selectors.skipSelectors) {
                 SKIP_SELECTORS = res.selectors.skipSelectors;
             }
@@ -31,7 +28,7 @@
     };
 
     setInterval(() => {
-        if (!active || !sniperOn) return;
+        if (!sniperOn) return;
 
         const video = document.querySelector('video');
         const adShowing = document.querySelector('.ad-showing, .ad-interrupting');
@@ -44,7 +41,6 @@
             }
             video.playbackRate = 16.0;
 
-            // Dùng SKIP_SELECTORS động
             SKIP_SELECTORS.forEach(sel => {
                 const btn = document.querySelector(sel);
                 if (btn) nativeClick(btn);
