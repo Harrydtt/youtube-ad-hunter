@@ -1,28 +1,24 @@
-// popup.js - v44.0
+// popup.js - v45.0: Connect to sample extension's toggle system
 document.addEventListener('DOMContentLoaded', () => {
-    const toggles = {
-        hunterActive: document.getElementById('toggle-hunter'), // ID này tùy html của ông
-        jsonCutEnabled: document.getElementById('toggle-jsoncut'),
-        offscreenEnabled: document.getElementById('toggle-offscreen'),
-        logic2Enabled: document.getElementById('toggle-logic2'), // Speed/Skip
-        staticAdsEnabled: document.getElementById('toggle-static')
-    };
+    // All checkboxes with class="setting" form
+    const settingsForms = document.querySelectorAll('.setting');
 
-    // Load
-    chrome.storage.local.get(Object.keys(toggles), (res) => {
-        for (const [key, el] of Object.entries(toggles)) {
-            if (el) el.checked = res[key] !== false; // Default ON (trừ static có thể default off tùy ông)
-        }
-        // Fix riêng static default off nếu chưa set
-        if (res.staticAdsEnabled === undefined && toggles.staticAdsEnabled) toggles.staticAdsEnabled.checked = false;
+    settingsForms.forEach(form => {
+        const input = form.querySelector('input');
+        if (!input) return;
+
+        const name = input.name;
+
+        // Load saved state
+        chrome.storage.local.get([name], (result) => {
+            // Default to true (ON) if not set
+            input.checked = result[name] !== false;
+        });
+
+        // Save on change
+        form.addEventListener('change', () => {
+            chrome.storage.local.set({ [name]: input.checked });
+            console.log(`[Popup] ${name} = ${input.checked}`);
+        });
     });
-
-    // Save Listeners
-    for (const [key, el] of Object.entries(toggles)) {
-        if (el) {
-            el.addEventListener('change', () => {
-                chrome.storage.local.set({ [key]: el.checked });
-            });
-        }
-    }
 });

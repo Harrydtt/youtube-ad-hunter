@@ -1,9 +1,9 @@
-// cleaner.js - v44.0: Janitor + Remote Selectors
+// cleaner.js - v45.0: Janitor + Remote Selectors
 (function () {
     console.log('[Cleaner] Janitor Ready 🧹');
 
     let active = true;
-    let staticOn = false;
+    let cleanerOn = true;
     let POPUP_SELECTORS = ['ytd-enforcement-message-view-model', 'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)'];
     let HIDE_SELECTORS = ['#masthead-ad', '#player-ads', 'ytd-ad-slot-renderer']; // Default
 
@@ -11,9 +11,9 @@
     const POPUP_KEYWORDS = ['Ad blockers', 'Terms of Service', 'trình chặn quảng cáo'];
 
     const updateState = () => {
-        chrome.storage.local.get(['hunterActive', 'staticAdsEnabled', 'selectors'], (res) => {
-            active = res.hunterActive !== false;
-            staticOn = res.staticAdsEnabled === true;
+        chrome.storage.local.get(['ads', 'cleanerEnabled', 'selectors'], (res) => {
+            active = res.ads !== false;
+            cleanerOn = res.cleanerEnabled !== false;
 
             // Update Selectors from Remote
             if (res.selectors) {
@@ -28,7 +28,7 @@
 
     const applyCss = () => {
         const existing = document.getElementById(CSS_ID);
-        if (active && staticOn) {
+        if (active && cleanerOn) {
             const cssText = HIDE_SELECTORS.join(', ') + ' { display: none !important; }';
             if (!existing) {
                 const style = document.createElement('style');
@@ -44,7 +44,7 @@
     };
 
     setInterval(() => {
-        if (!active || !staticOn) return;
+        if (!active || !cleanerOn) return;
 
         // Text Check
         document.querySelectorAll('tp-yt-paper-dialog').forEach(dialog => {

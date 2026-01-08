@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>YouTube Ad Hunter v44</title>
+  <title>YouTube Ad Hunter v45</title>
   <style>
     * {
       margin: 0;
@@ -12,7 +12,7 @@
     }
 
     body {
-      width: 320px;
+      width: 300px;
       background: #1a1a2e;
       color: white;
       font-family: 'Segoe UI', sans-serif;
@@ -40,29 +40,19 @@
       margin-top: 4px;
     }
 
-    .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: #667eea;
-      text-transform: uppercase;
-      margin: 12px 0 8px 0;
-      letter-spacing: 1px;
-    }
-
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 12px;
+      padding: 12px 14px;
       background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      margin-bottom: 8px;
+      border-radius: 10px;
+      margin-bottom: 10px;
     }
 
-    /* Master Row nổi bật hơn */
-    .master-row {
-      background: rgba(102, 126, 234, 0.15);
-      border: 1px solid rgba(102, 126, 234, 0.3);
+    .toggle-row.master {
+      background: rgba(102, 126, 234, 0.2);
+      border: 1px solid rgba(102, 126, 234, 0.4);
     }
 
     .toggle-label {
@@ -71,21 +61,21 @@
     }
 
     .name {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
     }
 
     .desc {
       font-size: 10px;
-      color: #aaa;
+      color: #999;
       margin-top: 2px;
     }
 
-    /* Switch CSS */
+    /* Switch */
     .switch {
       position: relative;
-      width: 40px;
-      height: 22px;
+      width: 42px;
+      height: 24px;
     }
 
     .switch input {
@@ -102,15 +92,15 @@
       right: 0;
       bottom: 0;
       background-color: #444;
-      border-radius: 22px;
+      border-radius: 24px;
       transition: .3s;
     }
 
     .slider:before {
       position: absolute;
       content: "";
-      height: 16px;
-      width: 16px;
+      height: 18px;
+      width: 18px;
       left: 3px;
       bottom: 3px;
       background-color: white;
@@ -139,71 +129,48 @@
 
 <body>
   <div class="header">
-    <h1>YouTube Ad Hunter</h1>
-    <div class="version">v44.0 Modular Architecture</div>
+    <h1>🎯 YouTube Ad Hunter</h1>
+    <div class="version">v45.0 - Full AdBlock</div>
   </div>
 
-  <div class="toggle-row master-row">
+  <!-- Setting 1: Cut Ads (connected to sample extension's "ads" key) -->
+  <form class="toggle-row master setting">
     <div class="toggle-label">
-      <span class="name">🎯 Hunter Master</span>
-      <span class="desc">Bật/Tắt toàn bộ hệ thống</span>
+      <span class="name">🔪 Cut Ads</span>
+      <span class="desc">Block all video ads at source</span>
     </div>
     <label class="switch">
-      <input type="checkbox" id="toggle-hunter" checked>
+      <input type="checkbox" id="ads" name="ads" checked>
       <span class="slider"></span>
     </label>
-  </div>
+  </form>
 
-  <div class="section-title">Core Modules</div>
-
-  <div class="toggle-row">
-    <div class="toggle-label">
-      <span class="name">🔪 JSON Surgeon</span>
-      <span class="desc">Cắt quảng cáo từ dữ liệu gốc</span>
-    </div>
-    <label class="switch">
-      <input type="checkbox" id="toggle-jsoncut" checked>
-      <span class="slider"></span>
-    </label>
-  </div>
-
-  <div class="toggle-row">
-    <div class="toggle-label">
-      <span class="name">👻 Offscreen Beacon</span>
-      <span class="desc">Gửi ping giả lập view thật</span>
-    </div>
-    <label class="switch">
-      <input type="checkbox" id="toggle-offscreen" checked>
-      <span class="slider"></span>
-    </label>
-  </div>
-
-  <div class="section-title">Client Modules</div>
-
-  <div class="toggle-row">
+  <!-- Setting 2: Ad Sniper -->
+  <form class="toggle-row setting">
     <div class="toggle-label">
       <span class="name">⚡ Ad Sniper</span>
-      <span class="desc">Tua nhanh & Skip video ads</span>
+      <span class="desc">Speed up & auto-skip ads</span>
     </div>
     <label class="switch">
-      <input type="checkbox" id="toggle-logic2" checked>
+      <input type="checkbox" id="sniperEnabled" name="sniperEnabled" checked>
       <span class="slider"></span>
     </label>
-  </div>
+  </form>
 
-  <div class="toggle-row">
+  <!-- Setting 3: Layout Cleaner -->
+  <form class="toggle-row setting">
     <div class="toggle-label">
       <span class="name">🧹 Layout Cleaner</span>
-      <span class="desc">Dọn dẹp Banner & Popup rác</span>
+      <span class="desc">Remove banners & popups</span>
     </div>
     <label class="switch">
-      <input type="checkbox" id="toggle-static">
+      <input type="checkbox" id="cleanerEnabled" name="cleanerEnabled" checked>
       <span class="slider"></span>
     </label>
-  </div>
+  </form>
 
   <div class="footer">
-    Project Phantom v44.0
+    Project Phantom v45.0
   </div>
 
   <script src="popup.js"></script>
