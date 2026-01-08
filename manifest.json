@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Hunter v45",
-  "version": "45.3",
+  "version": "45.4",
   "description": "Copy of Adblock for Youtube - Full Ad Blocking",
   "icons": {
     "16": "icons/icon16.png",
